@@ -12,6 +12,17 @@ import (
 	C "github.com/metacubex/mihomo/constant"
 )
 
+// validateSocketPort returns an error if both a TCP port and a Unix socket
+// path are configured for the same protocol. port 0 means the TCP listener
+// is disabled. portField and socketField are the YAML key names used in
+// the error message.
+func validateSocketPort(port int, socket string, portField, socketField string) error {
+	if port != 0 && socket != "" {
+		return fmt.Errorf("cannot set both %s and %s", portField, socketField)
+	}
+	return nil
+}
+
 // Check if ProxyGroups form DAG(Directed Acyclic Graph), and sort all ProxyGroups by dependency order.
 // Meanwhile, record the original index in the config file.
 // If loop is detected, return an error with location of loop.

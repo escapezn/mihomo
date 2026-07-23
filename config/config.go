@@ -76,6 +76,11 @@ type Inbound struct {
 	RedirPort         int            `json:"redir-port"`
 	TProxyPort        int            `json:"tproxy-port"`
 	MixedPort         int            `json:"mixed-port"`
+	PortSocket        string         `json:"port-socket"`
+	SocksSocket       string         `json:"socks-socket"`
+	RedirSocket       string         `json:"redir-socket"`
+	TProxySocket      string         `json:"tproxy-socket"`
+	MixedSocket       string         `json:"mixed-socket"`
 	Tun               LC.Tun         `json:"tun"`
 	TuicServer        LC.TuicServer  `json:"tuic-server"`
 	ShadowSocksConfig string         `json:"ss-config"`
@@ -402,6 +407,11 @@ type RawConfig struct {
 	RedirPort                     int                     `yaml:"redir-port" json:"redir-port"`
 	TProxyPort                    int                     `yaml:"tproxy-port" json:"tproxy-port"`
 	MixedPort                     int                     `yaml:"mixed-port" json:"mixed-port"`
+	PortSocket                    string                  `yaml:"port-socket" json:"port-socket"`
+	SocksSocket                   string                  `yaml:"socks-socket" json:"socks-socket"`
+	RedirSocket                   string                  `yaml:"redir-socket" json:"redir-socket"`
+	TProxySocket                  string                  `yaml:"tproxy-socket" json:"tproxy-socket"`
+	MixedSocket                   string                  `yaml:"mixed-socket" json:"mixed-socket"`
 	ShadowSocksConfig             string                  `yaml:"ss-config" json:"ss-config"`
 	VmessConfig                   string                  `yaml:"vmess-config" json:"vmess-config"`
 	InboundTfo                    bool                    `yaml:"inbound-tfo" json:"inbound-tfo"`
@@ -756,6 +766,23 @@ func parseGeneral(cfg *RawConfig) (*General, error) {
 	if cfg.GlobalClientFingerprint != "" {
 		log.Errorln("The `global-client-fingerprint` configuration is removed, please set `client-fingerprint` directly on the proxy instead")
 	}
+
+	if err := validateSocketPort(cfg.Port, cfg.PortSocket, "port", "port-socket"); err != nil {
+		return nil, err
+	}
+	if err := validateSocketPort(cfg.SocksPort, cfg.SocksSocket, "socks-port", "socks-socket"); err != nil {
+		return nil, err
+	}
+	if err := validateSocketPort(cfg.RedirPort, cfg.RedirSocket, "redir-port", "redir-socket"); err != nil {
+		return nil, err
+	}
+	if err := validateSocketPort(cfg.TProxyPort, cfg.TProxySocket, "tproxy-port", "tproxy-socket"); err != nil {
+		return nil, err
+	}
+	if err := validateSocketPort(cfg.MixedPort, cfg.MixedSocket, "mixed-port", "mixed-socket"); err != nil {
+		return nil, err
+	}
+
 	return &General{
 		Inbound: Inbound{
 			Port:              cfg.Port,
@@ -763,6 +790,11 @@ func parseGeneral(cfg *RawConfig) (*General, error) {
 			RedirPort:         cfg.RedirPort,
 			TProxyPort:        cfg.TProxyPort,
 			MixedPort:         cfg.MixedPort,
+			PortSocket:        cfg.PortSocket,
+			SocksSocket:       cfg.SocksSocket,
+			RedirSocket:       cfg.RedirSocket,
+			TProxySocket:      cfg.TProxySocket,
+			MixedSocket:       cfg.MixedSocket,
 			ShadowSocksConfig: cfg.ShadowSocksConfig,
 			VmessConfig:       cfg.VmessConfig,
 			AllowLan:          cfg.AllowLan,
