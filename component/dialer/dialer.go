@@ -40,6 +40,10 @@ func GetTcpConcurrent() bool {
 func DialContext(ctx context.Context, network, address string, options ...Option) (net.Conn, error) {
 	opt := applyOptions(options...)
 
+	if network == "unix" {
+		return dialUnix(ctx, address, opt)
+	}
+
 	if opt.network == 4 || opt.network == 6 {
 		if strings.Contains(network, "tcp") {
 			network = "tcp"
@@ -200,6 +204,30 @@ func ICMPControl(destination netip.Addr) func(network, address string, conn sysc
 		}
 		return nil
 	}
+}
+
+// dialUnix opens a Unix domain socket connection to address.
+// Most dial options (interface binding, routing mark, TFO, MPTCP,
+// DNS resolver, IP version preference) are silently ignored because
+// they are TCP/UDP socket options that do not exist for Unix sockets.
+// Only netDialer is honored; see dialContext for the equivalent TCP path.
+func dialUnix(ctx context.Context, address string, opt option) (net.Conn, error) {
+	netDialer := opt.netDialer
+	switch netDialer.(type) {
+	case nil:
+		netDialer = &net.Dialer{}
+	case *net.Dialer:
+		_netDialer := *netDialer.(*net.Dialer)
+		netDialer = &_netDialer
+	default:
+		return netDialer.DialContext(ctx, "unix", address)
+	}
+
+	d := netDialer.(*net.Dialer)
+	if d.Timeout == 0 {
+		d.Timeout = DefaultTCPTimeout
+	}
+	return d.DialContext(ctx, "unix", address)
 }
 
 type dialFunc func(ctx context.Context, network string, ips []netip.Addr, port string, opt option) (net.Conn, error)
