@@ -27,19 +27,20 @@ type ProxyAdapter interface {
 }
 
 type Base struct {
-	name   string
-	addr   string
-	tp     C.AdapterType
-	pdName string
-	udp    bool
-	xudp   bool
-	tfo    bool
-	mpTcp  bool
-	iface  string
-	rmark  int
-	prefer C.DNSPrefer
-	dialer C.Dialer
-	id     uuid.UUID
+	name    string
+	addr    string
+	network string
+	tp      C.AdapterType
+	pdName  string
+	udp     bool
+	xudp    bool
+	tfo     bool
+	mpTcp   bool
+	iface   string
+	rmark   int
+	prefer  C.DNSPrefer
+	dialer  C.Dialer
+	id      uuid.UUID
 }
 
 type BaseOption struct {
@@ -57,19 +58,24 @@ type BaseOption struct {
 }
 
 func NewBase(opt BaseOption) *Base {
+	network := "tcp"
+	if utils.IsUnixPath(opt.Addr) {
+		network = "unix"
+	}
 	return &Base{
-		name:   opt.Name,
-		addr:   opt.Addr,
-		tp:     opt.Type,
-		pdName: opt.ProviderName,
-		udp:    opt.UDP,
-		xudp:   opt.XUDP,
-		tfo:    opt.TFO,
-		mpTcp:  opt.MPTCP,
-		iface:  opt.Interface,
-		rmark:  opt.RoutingMark,
-		prefer: opt.Prefer,
-		id:     utils.NewUUIDV4(),
+		name:    opt.Name,
+		addr:    opt.Addr,
+		network: network,
+		tp:      opt.Type,
+		pdName:  opt.ProviderName,
+		udp:     opt.UDP,
+		xudp:    opt.XUDP,
+		tfo:     opt.TFO,
+		mpTcp:   opt.MPTCP,
+		iface:   opt.Interface,
+		rmark:   opt.RoutingMark,
+		prefer:  opt.Prefer,
+		id:      utils.NewUUIDV4(),
 	}
 }
 
@@ -135,6 +141,12 @@ func (b *Base) MarshalJSON() ([]byte, error) {
 // Addr implements C.ProxyAdapter
 func (b *Base) Addr() string {
 	return b.addr
+}
+
+// Network returns the network type for dialing: "tcp" for host:port
+// addresses, "unix" for Unix domain socket paths.
+func (b *Base) Network() string {
+	return b.network
 }
 
 // Unwrap implements C.ProxyAdapter

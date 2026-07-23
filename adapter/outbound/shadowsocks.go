@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"strconv"
 
 	N "github.com/metacubex/mihomo/common/net"
 	"github.com/metacubex/mihomo/common/structure"
@@ -299,7 +298,7 @@ func (ss *ShadowSocks) Close() error {
 }
 
 func NewShadowSocks(option ShadowSocksOption) (*ShadowSocks, error) {
-	addr := net.JoinHostPort(option.Server, strconv.Itoa(option.Port))
+	addr := resolveAddr(option.Server, option.Port)
 	method, err := shadowsocks.CreateMethod(option.Cipher, shadowsocks.MethodOptions{
 		Password: option.Password,
 		TimeFunc: ntp.Now,

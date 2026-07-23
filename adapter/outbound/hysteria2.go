@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"strconv"
 	"time"
 
 	N "github.com/metacubex/mihomo/common/net"
@@ -127,7 +126,7 @@ func (h *Hysteria2) ProxyInfo() C.ProxyInfo {
 }
 
 func NewHysteria2(option Hysteria2Option) (*Hysteria2, error) {
-	addr := net.JoinHostPort(option.Server, strconv.Itoa(option.Port))
+	addr := resolveAddr(option.Server, option.Port)
 	outbound := &Hysteria2{
 		Base: NewBase(BaseOption{
 			Name:         option.Name,

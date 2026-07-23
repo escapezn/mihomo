@@ -113,7 +113,7 @@ func (s *Ssh) Close() error {
 }
 
 func NewSsh(option SshOption) (*Ssh, error) {
-	addr := net.JoinHostPort(option.Server, strconv.Itoa(option.Port))
+	addr := resolveAddr(option.Server, option.Port)
 
 	config := ssh.ClientConfig{
 		User:              option.UserName,

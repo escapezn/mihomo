@@ -10,7 +10,6 @@ import (
 	"io"
 	"net"
 	"net/netip"
-	"strconv"
 	"strings"
 	"time"
 
@@ -113,7 +112,7 @@ func NewMasque(option MasqueOption) (*Masque, error) {
 	outbound := &Masque{
 		Base: NewBase(BaseOption{
 			Name:         option.Name,
-			Addr:         net.JoinHostPort(option.Server, strconv.Itoa(option.Port)),
+			Addr:         resolveAddr(option.Server, option.Port),
 			Type:         C.Masque,
 			ProviderName: option.ProviderName,
 			UDP:          option.UDP,

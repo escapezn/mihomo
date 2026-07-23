@@ -7,7 +7,6 @@ import (
 	"io"
 	"net"
 	"net/netip"
-	"strconv"
 
 	N "github.com/metacubex/mihomo/common/net"
 	"github.com/metacubex/mihomo/component/ca"
@@ -192,7 +191,7 @@ func NewSocks5(option Socks5Option) (*Socks5, error) {
 	outbound := &Socks5{
 		Base: NewBase(BaseOption{
 			Name:         option.Name,
-			Addr:         net.JoinHostPort(option.Server, strconv.Itoa(option.Port)),
+			Addr:         resolveAddr(option.Server, option.Port),
 			Type:         C.Socks5,
 			ProviderName: option.ProviderName,
 			UDP:          option.UDP,

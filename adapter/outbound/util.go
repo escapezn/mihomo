@@ -7,10 +7,21 @@ import (
 	"net/netip"
 	"strconv"
 
+	"github.com/metacubex/mihomo/common/utils"
 	"github.com/metacubex/mihomo/component/resolver"
 	C "github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/transport/socks5"
 )
+
+// resolveAddr builds a canonical address string from server and port.
+// For Unix domain socket paths (detected via utils.IsUnixPath), the port
+// is ignored and the path is returned as-is.
+func resolveAddr(server string, port int) string {
+	if utils.IsUnixPath(server) {
+		return server
+	}
+	return net.JoinHostPort(server, strconv.Itoa(port))
+}
 
 func serializesSocksAddr(metadata *C.Metadata) []byte {
 	var buf [][]byte

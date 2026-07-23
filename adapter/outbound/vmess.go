@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -494,7 +493,7 @@ func NewVmess(option VmessOption) (*Vmess, error) {
 	v := &Vmess{
 		Base: NewBase(BaseOption{
 			Name:         option.Name,
-			Addr:         net.JoinHostPort(option.Server, strconv.Itoa(option.Port)),
+			Addr:         resolveAddr(option.Server, option.Port),
 			Type:         C.Vmess,
 			ProviderName: option.ProviderName,
 			UDP:          option.UDP,

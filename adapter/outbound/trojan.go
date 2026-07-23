@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"strconv"
 	"strings"
 
 	N "github.com/metacubex/mihomo/common/net"
@@ -281,7 +280,7 @@ func (t *Trojan) Close() error {
 }
 
 func NewTrojan(option TrojanOption) (*Trojan, error) {
-	addr := net.JoinHostPort(option.Server, strconv.Itoa(option.Port))
+	addr := resolveAddr(option.Server, option.Port)
 
 	if option.SNI == "" {
 		option.SNI = option.Server

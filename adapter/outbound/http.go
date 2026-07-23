@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"strconv"
 
 	N "github.com/metacubex/mihomo/common/net"
 	"github.com/metacubex/mihomo/component/ca"
@@ -171,7 +170,7 @@ func NewHttp(option HttpOption) (*Http, error) {
 	outbound := &Http{
 		Base: NewBase(BaseOption{
 			Name:         option.Name,
-			Addr:         net.JoinHostPort(option.Server, strconv.Itoa(option.Port)),
+			Addr:         resolveAddr(option.Server, option.Port),
 			Type:         C.Http,
 			ProviderName: option.ProviderName,
 			TFO:          option.TFO,

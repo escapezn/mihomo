@@ -168,7 +168,7 @@ func NewWireGuard(option WireGuardOption) (*WireGuard, error) {
 	outbound := &WireGuard{
 		Base: NewBase(BaseOption{
 			Name:         option.Name,
-			Addr:         net.JoinHostPort(option.Server, strconv.Itoa(option.Port)),
+			Addr:         resolveAddr(option.Server, option.Port),
 			Type:         C.WireGuard,
 			ProviderName: option.ProviderName,
 			UDP:          option.UDP,

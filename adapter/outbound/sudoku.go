@@ -195,7 +195,7 @@ func NewSudoku(option SudokuOption) (*Sudoku, error) {
 	}
 
 	baseConf := sudoku.ProtocolConfig{
-		ServerAddress:           net.JoinHostPort(option.Server, strconv.Itoa(option.Port)),
+		ServerAddress:           resolveAddr(option.Server, option.Port),
 		Key:                     option.Key,
 		AEADMethod:              defaultConf.AEADMethod,
 		PaddingMin:              paddingMin,

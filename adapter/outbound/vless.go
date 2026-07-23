@@ -491,7 +491,7 @@ func NewVless(option VlessOption) (*Vless, error) {
 	v := &Vless{
 		Base: NewBase(BaseOption{
 			Name:         option.Name,
-			Addr:         net.JoinHostPort(option.Server, strconv.Itoa(option.Port)),
+			Addr:         resolveAddr(option.Server, option.Port),
 			Type:         C.Vless,
 			ProviderName: option.ProviderName,
 			UDP:          option.UDP,
