@@ -354,7 +354,7 @@ func (o *OpenVPN) openPacketIO(ctx context.Context) (ovpn.PacketIO, error) {
 		}
 		return ovpn.NewDatagramPacketIO(conn), nil
 	case ovpn.ProtoTCP:
-		conn, err := o.dialer.DialContext(ctx, "tcp", o.addr)
+		conn, err := o.dialer.DialContext(ctx, o.Network(), o.addr)
 		if err != nil {
 			return nil, err
 		}

@@ -344,7 +344,7 @@ func (v *Vless) dialContext(ctx context.Context) (c net.Conn, err error) {
 		return v.xhttpClient.Dial(ctx)
 	default:
 	}
-	return v.dialer.DialContext(ctx, "tcp", v.addr)
+	return v.dialer.DialContext(ctx, v.Network(), v.addr)
 }
 
 // DialContext implements C.ProxyAdapter
@@ -563,7 +563,7 @@ func NewVless(option VlessOption) (*Vless, error) {
 		}
 	case "grpc":
 		dialFn := func(ctx context.Context, network, addr string) (net.Conn, error) {
-			c, err := v.dialer.DialContext(ctx, "tcp", v.addr)
+			c, err := v.dialer.DialContext(ctx, v.Network(), v.addr)
 			if err != nil {
 				return nil, fmt.Errorf("%s connect error: %s", v.addr, err.Error())
 			}
@@ -664,7 +664,7 @@ func NewVless(option VlessOption) (*Vless, error) {
 		makeTransport := func() http.RoundTripper {
 			return xhttp.NewTransport(
 				func(ctx context.Context) (net.Conn, error) {
-					return v.dialer.DialContext(ctx, "tcp", v.addr)
+					return v.dialer.DialContext(ctx, v.Network(), v.addr)
 				},
 				func(ctx context.Context, raw net.Conn, isH2 bool) (net.Conn, error) {
 					return v.streamTLSConn(ctx, raw, isH2)

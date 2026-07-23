@@ -214,7 +214,7 @@ func (ss *ShadowSocks) dialContext(ctx context.Context) (c net.Conn, err error) 
 	if ss.kcptunClient != nil {
 		return ss.kcptunClient.OpenStream(ctx, ss.listenPacketContext)
 	}
-	return ss.dialer.DialContext(ctx, "tcp", ss.addr)
+	return ss.dialer.DialContext(ctx, ss.Network(), ss.addr)
 }
 
 // DialContext implements C.ProxyAdapter

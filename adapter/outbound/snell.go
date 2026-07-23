@@ -115,7 +115,7 @@ func (s *Snell) DialContext(ctx context.Context, metadata *C.Metadata) (_ C.Conn
 		return NewConn(c, s), err
 	}
 
-	c, err := s.dialer.DialContext(ctx, "tcp", s.addr)
+	c, err := s.dialer.DialContext(ctx, s.Network(), s.addr)
 	if err != nil {
 		return nil, fmt.Errorf("%s connect error: %w", s.addr, err)
 	}
@@ -133,7 +133,7 @@ func (s *Snell) ListenPacketContext(ctx context.Context, metadata *C.Metadata) (
 	if err = s.ResolveUDP(ctx, metadata); err != nil {
 		return nil, err
 	}
-	c, err := s.dialer.DialContext(ctx, "tcp", s.addr)
+	c, err := s.dialer.DialContext(ctx, s.Network(), s.addr)
 	if err != nil {
 		return nil, err
 	}

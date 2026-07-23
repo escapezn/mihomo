@@ -316,7 +316,7 @@ func (s *Sudoku) dialAndHandshake(ctx context.Context, cfg *sudoku.ProtocolConfi
 		}
 	}
 	if c == nil && err == nil {
-		c, err = s.dialer.DialContext(ctx, "tcp", s.addr)
+		c, err = s.dialer.DialContext(ctx, s.Network(), s.addr)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("%s connect error: %w", s.addr, err)

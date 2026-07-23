@@ -212,7 +212,7 @@ func (t *Trojan) dialContext(ctx context.Context) (c net.Conn, err error) {
 		return t.gunClient.Dial()
 	default:
 	}
-	return t.dialer.DialContext(ctx, "tcp", t.addr)
+	return t.dialer.DialContext(ctx, t.Network(), t.addr)
 }
 
 // DialContext implements C.ProxyAdapter
@@ -358,7 +358,7 @@ func NewTrojan(option TrojanOption) (*Trojan, error) {
 
 	if option.Network == "grpc" {
 		dialFn := func(ctx context.Context, network, addr string) (net.Conn, error) {
-			c, err := t.dialer.DialContext(ctx, "tcp", t.addr)
+			c, err := t.dialer.DialContext(ctx, t.Network(), t.addr)
 			if err != nil {
 				return nil, fmt.Errorf("%s connect error: %s", t.addr, err.Error())
 			}

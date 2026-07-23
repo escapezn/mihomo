@@ -65,7 +65,7 @@ func (ssr *ShadowSocksR) StreamConnContext(ctx context.Context, c net.Conn, meta
 
 // DialContext implements C.ProxyAdapter
 func (ssr *ShadowSocksR) DialContext(ctx context.Context, metadata *C.Metadata) (_ C.Conn, err error) {
-	c, err := ssr.dialer.DialContext(ctx, "tcp", ssr.addr)
+	c, err := ssr.dialer.DialContext(ctx, ssr.Network(), ssr.addr)
 	if err != nil {
 		return nil, fmt.Errorf("%s connect error: %w", ssr.addr, err)
 	}

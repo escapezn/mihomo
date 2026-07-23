@@ -68,7 +68,7 @@ func (ss *Socks5) StreamConnContext(ctx context.Context, c net.Conn, metadata *C
 
 // DialContext implements C.ProxyAdapter
 func (ss *Socks5) DialContext(ctx context.Context, metadata *C.Metadata) (_ C.Conn, err error) {
-	c, err := ss.dialer.DialContext(ctx, "tcp", ss.addr)
+	c, err := ss.dialer.DialContext(ctx, ss.Network(), ss.addr)
 	if err != nil {
 		return nil, fmt.Errorf("%s connect error: %w", ss.addr, err)
 	}
@@ -90,7 +90,7 @@ func (ss *Socks5) ListenPacketContext(ctx context.Context, metadata *C.Metadata)
 	if err = ss.ResolveUDP(ctx, metadata); err != nil {
 		return nil, err
 	}
-	c, err := ss.dialer.DialContext(ctx, "tcp", ss.addr)
+	c, err := ss.dialer.DialContext(ctx, ss.Network(), ss.addr)
 	if err != nil {
 		err = fmt.Errorf("%s connect error: %w", ss.addr, err)
 		return

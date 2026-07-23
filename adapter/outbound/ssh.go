@@ -60,7 +60,7 @@ func (s *Ssh) connect(ctx context.Context, addr string) (client *ssh.Client, err
 	if s.client != nil {
 		return s.client, nil
 	}
-	c, err := s.dialer.DialContext(ctx, "tcp", addr)
+	c, err := s.dialer.DialContext(ctx, s.Network(), addr)
 	if err != nil {
 		return nil, err
 	}
