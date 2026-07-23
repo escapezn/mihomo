@@ -77,7 +77,7 @@ func (m *Mixed) Listen(tunnel C.Tunnel) error {
 			EchKey:         m.config.EchKey,
 			RealityConfig:  m.config.RealityConfig.Build(),
 		}
-		l, err := mixed.NewWithConfig(config, lc, tunnel, m.Additions()...)
+		l, err := mixed.NewWithConfig("tcp", config, lc, tunnel, m.Additions()...)
 		if err != nil {
 			return err
 		}

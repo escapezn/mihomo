@@ -97,7 +97,7 @@ func (s *Socks) Listen(tunnel C.Tunnel) error {
 			EchKey:         s.config.EchKey,
 			RealityConfig:  s.config.RealityConfig.Build(),
 		}
-		stl, err := socks.NewWithConfig(config, lc, tunnel, s.Additions()...)
+		stl, err := socks.NewWithConfig("tcp", config, lc, tunnel, s.Additions()...)
 		if err != nil {
 			return err
 		}

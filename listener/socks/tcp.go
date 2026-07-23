@@ -5,6 +5,9 @@ import (
 	"errors"
 	"io"
 	"net"
+	"os"
+	"path/filepath"
+	"syscall"
 
 	"github.com/metacubex/mihomo/adapter/inbound"
 	N "github.com/metacubex/mihomo/common/net"
@@ -49,10 +52,16 @@ func defaultConfig(addr string) LC.AuthServer {
 }
 
 func New(addr string, tunnel C.Tunnel, additions ...inbound.Addition) (*Listener, error) {
-	return NewWithConfig(defaultConfig(addr), inbound.NewListenConfig(), tunnel, additions...)
+	return NewWithNetwork("tcp", addr, tunnel, additions...)
 }
 
-func NewWithConfig(config LC.AuthServer, lc C.InboundListenConfig, tunnel C.Tunnel, additions ...inbound.Addition) (*Listener, error) {
+// NewWithNetwork creates a SOCKS proxy listener on the given network and address.
+// network must be "tcp" or "unix".
+func NewWithNetwork(network, addr string, tunnel C.Tunnel, additions ...inbound.Addition) (*Listener, error) {
+	return NewWithConfig(network, LC.AuthServer{Enable: true, Listen: addr, AuthStore: authStore.Default}, inbound.NewListenConfig(), tunnel, additions...)
+}
+
+func NewWithConfig(network string, config LC.AuthServer, lc C.InboundListenConfig, tunnel C.Tunnel, additions ...inbound.Addition) (*Listener, error) {
 	isDefault := false
 	if len(additions) == 0 {
 		isDefault = true
@@ -62,9 +71,20 @@ func NewWithConfig(config LC.AuthServer, lc C.InboundListenConfig, tunnel C.Tunn
 		}
 	}
 
-	l, err := lc.Listen(context.Background(), "tcp", config.Listen)
+	if network == "unix" {
+		_ = syscall.Unlink(config.Listen)
+		if dir := filepath.Dir(config.Listen); dir != "." {
+			_ = os.MkdirAll(dir, 0o755)
+		}
+	}
+
+	l, err := lc.Listen(context.Background(), network, config.Listen)
 	if err != nil {
 		return nil, err
+	}
+
+	if network == "unix" {
+		_ = os.Chmod(config.Listen, 0o666)
 	}
 
 	tlsConfig := &tls.Config{Time: ntp.Now}

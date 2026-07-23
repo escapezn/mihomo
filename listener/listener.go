@@ -33,12 +33,15 @@ var (
 	socksListener       *socks.Listener
 	socksUDPListener    *socks.UDPListener
 	httpListener        *http.Listener
+	httpSocketListener  *http.Listener
 	redirListener       *redir.Listener
 	redirUDPListener    *tproxy.UDPListener
 	tproxyListener      *tproxy.Listener
 	tproxyUDPListener   *tproxy.UDPListener
 	mixedListener       *mixed.Listener
 	mixedUDPLister      *socks.UDPListener
+	mixedSocketListener *mixed.Listener
+	socksSocketListener *socks.Listener
 	tunnelTCPListeners  = map[string]*LT.Listener{}
 	tunnelUDPListeners  = map[string]*LT.PacketConn{}
 	inboundListeners    = map[string]C.InboundListener{}
@@ -48,17 +51,20 @@ var (
 	tuicListener        *tuic.Listener
 
 	// lock for recreate function
-	socksMux   sync.Mutex
-	httpMux    sync.Mutex
-	redirMux   sync.Mutex
-	tproxyMux  sync.Mutex
-	mixedMux   sync.Mutex
-	tunnelMux  sync.Mutex
-	inboundMux sync.Mutex
-	tunMux     sync.Mutex
-	ssMux      sync.Mutex
-	vmessMux   sync.Mutex
-	tuicMux    sync.Mutex
+	socksMux       sync.Mutex
+	httpMux        sync.Mutex
+	httpSocketMux  sync.Mutex
+	redirMux       sync.Mutex
+	tproxyMux      sync.Mutex
+	mixedMux       sync.Mutex
+	mixedSocketMux sync.Mutex
+	socksSocketMux sync.Mutex
+	tunnelMux      sync.Mutex
+	inboundMux     sync.Mutex
+	tunMux         sync.Mutex
+	ssMux          sync.Mutex
+	vmessMux       sync.Mutex
+	tuicMux        sync.Mutex
 
 	LastTunConf  LC.Tun
 	LastTuicConf LC.TuicServer
@@ -138,6 +144,37 @@ func ReCreateHTTP(port int, tunnel C.Tunnel) {
 	log.Infoln("HTTP proxy listening at: %s", httpListener.Address())
 }
 
+func ReCreateHTTPSocket(path string, tunnel C.Tunnel) {
+	httpSocketMux.Lock()
+	defer httpSocketMux.Unlock()
+
+	var err error
+	defer func() {
+		if err != nil {
+			log.Errorln("Start HTTP socket server error: %s", err.Error())
+		}
+	}()
+
+	if httpSocketListener != nil {
+		if httpSocketListener.RawAddress() == path {
+			return
+		}
+		httpSocketListener.Close()
+		httpSocketListener = nil
+	}
+
+	if path == "" {
+		return
+	}
+
+	httpSocketListener, err = http.NewWithNetwork("unix", path, tunnel)
+	if err != nil {
+		return
+	}
+
+	log.Infoln("HTTP proxy listening at: %s", httpSocketListener.Address())
+}
+
 func ReCreateSocks(port int, tunnel C.Tunnel) {
 	socksMux.Lock()
 	defer socksMux.Unlock()
@@ -195,6 +232,37 @@ func ReCreateSocks(port int, tunnel C.Tunnel) {
 	socksUDPListener = udpListener
 
 	log.Infoln("SOCKS proxy listening at: %s", socksListener.Address())
+}
+
+func ReCreateSocksSocket(path string, tunnel C.Tunnel) {
+	socksSocketMux.Lock()
+	defer socksSocketMux.Unlock()
+
+	var err error
+	defer func() {
+		if err != nil {
+			log.Errorln("Start SOCKS socket server error: %s", err.Error())
+		}
+	}()
+
+	if socksSocketListener != nil {
+		if socksSocketListener.RawAddress() == path {
+			return
+		}
+		socksSocketListener.Close()
+		socksSocketListener = nil
+	}
+
+	if path == "" {
+		return
+	}
+
+	socksSocketListener, err = socks.NewWithNetwork("unix", path, tunnel)
+	if err != nil {
+		return
+	}
+
+	log.Infoln("SOCKS proxy listening at: %s", socksSocketListener.Address())
 }
 
 func ReCreateRedir(port int, tunnel C.Tunnel) {
@@ -493,6 +561,37 @@ func ReCreateMixed(port int, tunnel C.Tunnel) {
 	}
 
 	log.Infoln("Mixed(http+socks) proxy listening at: %s", mixedListener.Address())
+}
+
+func ReCreateMixedSocket(path string, tunnel C.Tunnel) {
+	mixedSocketMux.Lock()
+	defer mixedSocketMux.Unlock()
+
+	var err error
+	defer func() {
+		if err != nil {
+			log.Errorln("Start Mixed(http+socks) socket server error: %s", err.Error())
+		}
+	}()
+
+	if mixedSocketListener != nil {
+		if mixedSocketListener.RawAddress() == path {
+			return
+		}
+		mixedSocketListener.Close()
+		mixedSocketListener = nil
+	}
+
+	if path == "" {
+		return
+	}
+
+	mixedSocketListener, err = mixed.NewWithNetwork("unix", path, tunnel)
+	if err != nil {
+		return
+	}
+
+	log.Infoln("Mixed(http+socks) proxy listening at: %s", mixedSocketListener.Address())
 }
 
 func ReCreateTun(tunConf LC.Tun, tunnel C.Tunnel) {

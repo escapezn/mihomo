@@ -198,10 +198,13 @@ func updateListeners(general *config.General, listeners map[string]C.InboundList
 	bindAddress := general.BindAddress
 	listener.SetBindAddress(bindAddress)
 	listener.ReCreateHTTP(general.Port, tunnel.Tunnel)
+	listener.ReCreateHTTPSocket(general.PortSocket, tunnel.Tunnel)
 	listener.ReCreateSocks(general.SocksPort, tunnel.Tunnel)
+	listener.ReCreateSocksSocket(general.SocksSocket, tunnel.Tunnel)
 	listener.ReCreateRedir(general.RedirPort, tunnel.Tunnel)
 	listener.ReCreateTProxy(general.TProxyPort, tunnel.Tunnel)
 	listener.ReCreateMixed(general.MixedPort, tunnel.Tunnel)
+	listener.ReCreateMixedSocket(general.MixedSocket, tunnel.Tunnel)
 	listener.ReCreateShadowSocks(general.ShadowSocksConfig, tunnel.Tunnel)
 	listener.ReCreateVmess(general.VmessConfig, tunnel.Tunnel)
 	listener.ReCreateTuic(general.TuicServer, tunnel.Tunnel)
