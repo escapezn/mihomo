@@ -49,6 +49,7 @@ func NewTrustTunnel(options *TrustTunnelOption) (*TrustTunnel, error) {
 		vs: LC.TrustTunnelServer{
 			Enable:               true,
 			Listen:               base.RawAddress(),
+			Port:                 options.Port,
 			Users:                users,
 			Certificate:          options.Certificate,
 			PrivateKey:           options.PrivateKey,

@@ -7,6 +7,7 @@ import (
 type TrustTunnelServer struct {
 	Enable               bool              `yaml:"enable" json:"enable"`
 	Listen               string            `yaml:"listen" json:"listen"`
+	Port                 string            `yaml:"port" json:"port,omitempty"`
 	Users                map[string]string `yaml:"users" json:"users,omitempty"`
 	Certificate          string            `yaml:"certificate" json:"certificate"`
 	PrivateKey           string            `yaml:"private-key" json:"private-key"`
