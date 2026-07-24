@@ -1,3 +1,19 @@
+# Unix Doamin Socket support
+# Built-in listeners
+mixed-socket: /var/run/mihomo.sock
+
+# Custom listeners
+listeners:
+  - type: vless
+    listen: /var/run/vless.sock
+
+# Outbound
+proxies:
+  - name: local-ss
+    type: ss
+    server: /var/run/ss-server.sock
+
+
 # port: 7890 # HTTP(S) 代理服务器端口
 # socks-port: 7891 # SOCKS5 代理端口
 mixed-port: 10801 # HTTP(S) 和 SOCKS 代理混合端口
@@ -989,7 +1005,7 @@ proxies: # socks5
       # max-connections: 1 # Maximum connections. Conflict with max-streams.
       # min-streams: 0 # Minimum multiplexed streams in a connection before opening a new connection. Conflict with max-streams.
       # max-streams: 0 # Maximum multiplexed streams in a connection before opening a new connection. Conflict with max-connections and min-streams.
-      
+
     reality-opts:
       public-key: CrrQSjAG_YkHLwvM2M-7XkKJilgL5upBKCp0od0tLhE
       short-id: 10f897e26c4b9478
@@ -1576,7 +1592,7 @@ proxies: # socks5
   - name: sudoku
     type: sudoku
     server: server_ip/domain # 1.2.3.4 or domain
-    port: 443 
+    port: 443
     key: "<client_key>" # 如果你使用sudoku生成的ED25519密钥对，请填写密钥对中的私钥，否则填入和服务端相同的uuid
     aead-method: chacha20-poly1305 # 可选：chacha20-poly1305、aes-128-gcm、none（不建议；none 不提供 AEAD 保护）
     padding-min: 2 # 最小填充率（0-100）
