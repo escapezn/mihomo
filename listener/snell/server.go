@@ -33,7 +33,7 @@ type Listener struct {
 	listeners []net.Listener
 }
 
-func New(config LC.SnellServer, lc C.InboundListenConfig, tunnel C.Tunnel, additions ...inbound.Addition) (C.MultiAddrListener, error) {
+func New(network string, config LC.SnellServer, lc C.InboundListenConfig, tunnel C.Tunnel, additions ...inbound.Addition) (C.MultiAddrListener, error) {
 	if config.Version == 0 {
 		config.Version = snell.Version4
 	}
@@ -92,7 +92,7 @@ func New(config LC.SnellServer, lc C.InboundListenConfig, tunnel C.Tunnel, addit
 		if addr == "" {
 			continue
 		}
-		ln, err := lc.Listen(context.Background(), "tcp", addr)
+		ln, err := lc.Listen(context.Background(), network, addr)
 		if err != nil {
 			_ = l.Close()
 			return nil, err

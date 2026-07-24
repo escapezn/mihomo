@@ -119,7 +119,7 @@ func (s *Sudoku) Listen(tunnel C.Tunnel) error {
 		conf := s.serverConf
 		conf.Listen = addr
 
-		l, err := sudoku.New(conf, lc, tunnel, s.Additions()...)
+		l, err := sudoku.New(s.Network(), conf, lc, tunnel, s.Additions()...)
 		if err != nil {
 			errs = append(errs, err)
 			continue

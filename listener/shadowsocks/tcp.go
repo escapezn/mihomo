@@ -31,7 +31,7 @@ type Listener struct {
 
 var _listener *Listener
 
-func New(config LC.ShadowsocksServer, lc C.InboundListenConfig, tunnel C.Tunnel, additions ...inbound.Addition) (*Listener, error) {
+func New(network string, config LC.ShadowsocksServer, lc C.InboundListenConfig, tunnel C.Tunnel, additions ...inbound.Addition) (*Listener, error) {
 	pickCipher, err := core.PickCipher(config.Cipher, nil, config.Password)
 	if err != nil {
 		return nil, err
@@ -109,7 +109,7 @@ func New(config LC.ShadowsocksServer, lc C.InboundListenConfig, tunnel C.Tunnel,
 		}
 
 		//TCP
-		l, err := lc.Listen(context.Background(), "tcp", addr)
+		l, err := lc.Listen(context.Background(), network, addr)
 		if err != nil {
 			return nil, err
 		}

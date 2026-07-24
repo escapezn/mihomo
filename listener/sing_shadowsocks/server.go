@@ -28,7 +28,7 @@ import (
 	"github.com/metacubex/sing/common/buf"
 	"github.com/metacubex/sing/common/bufio"
 	M "github.com/metacubex/sing/common/metadata"
-	"github.com/metacubex/sing/common/network"
+	singNetwork "github.com/metacubex/sing/common/network"
 )
 
 type Listener struct {
@@ -42,7 +42,7 @@ type Listener struct {
 
 var _listener *Listener
 
-func New(config LC.ShadowsocksServer, lc C.InboundListenConfig, tunnel C.Tunnel, additions ...inbound.Addition) (C.MultiAddrListener, error) {
+func New(network string, config LC.ShadowsocksServer, lc C.InboundListenConfig, tunnel C.Tunnel, additions ...inbound.Addition) (C.MultiAddrListener, error) {
 	var sl *Listener
 	var err error
 	if len(additions) == 0 {
@@ -79,7 +79,7 @@ func New(config LC.ShadowsocksServer, lc C.InboundListenConfig, tunnel C.Tunnel,
 		sl.service, err = shadowaead_2022.NewServiceWithPassword(config.Cipher, config.Password, udpTimeout, h, ntp.Now)
 	default:
 		err = fmt.Errorf("shadowsocks: unsupported method: %s", config.Cipher)
-		return embedSS.New(config, lc, tunnel, additions...)
+		return embedSS.New(network, config, lc, tunnel, additions...)
 	}
 	if err != nil {
 		return nil, err
@@ -163,7 +163,7 @@ func New(config LC.ShadowsocksServer, lc C.InboundListenConfig, tunnel C.Tunnel,
 
 			go func() {
 				conn := bufio.NewPacketConn(ul)
-				rwOptions := network.NewReadWaitOptions(conn, sl.service)
+				rwOptions := singNetwork.NewReadWaitOptions(conn, sl.service)
 				readWaiter, isReadWaiter := bufio.CreatePacketReadWaiter(conn)
 				if isReadWaiter {
 					readWaiter.InitializeReadWaiter(rwOptions)
@@ -202,7 +202,7 @@ func New(config LC.ShadowsocksServer, lc C.InboundListenConfig, tunnel C.Tunnel,
 		}
 
 		//TCP
-		l, err := lc.Listen(context.Background(), "tcp", addr)
+		l, err := lc.Listen(context.Background(), network, addr)
 		if err != nil {
 			return nil, err
 		}

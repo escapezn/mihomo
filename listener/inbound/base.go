@@ -18,11 +18,22 @@ type Base struct {
 	specialRules string
 	listenAddr   netip.Addr
 	ports        utils.IntRanges[uint16]
+	socketPath   string
+	network      string
 }
 
 func NewBase(options *BaseOption) (*Base, error) {
 	if options.Listen == "" {
 		options.Listen = "0.0.0.0"
+	}
+	if utils.IsUnixPath(options.Listen) {
+		return &Base{
+			name:         options.Name(),
+			specialRules: options.SpecialRules,
+			socketPath:   options.Listen,
+			network:      "unix",
+			config:       options,
+		}, nil
 	}
 	addr, err := netip.ParseAddr(options.Listen)
 	if err != nil {
@@ -37,6 +48,7 @@ func NewBase(options *BaseOption) (*Base, error) {
 		listenAddr:   addr,
 		specialRules: options.SpecialRules,
 		ports:        ports,
+		network:      "tcp",
 		config:       options,
 	}, nil
 }
@@ -63,6 +75,9 @@ func (b *Base) Name() string {
 
 // RawAddress implements constant.InboundListener
 func (b *Base) RawAddress() string {
+	if b.network == "unix" {
+		return b.socketPath
+	}
 	if len(b.ports) == 0 {
 		return net.JoinHostPort(b.listenAddr.String(), "0")
 	}
@@ -72,6 +87,12 @@ func (b *Base) RawAddress() string {
 		return true
 	})
 	return strings.Join(address, ",")
+}
+
+// Network returns the network type for listening: "tcp" for IP addresses,
+// "unix" for Unix domain socket paths.
+func (b *Base) Network() string {
+	return b.network
 }
 
 // Listen implements constant.InboundListener

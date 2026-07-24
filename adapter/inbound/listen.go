@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"os"
+	"path/filepath"
 	"syscall"
 
 	"github.com/metacubex/mihomo/common/atomic"
@@ -65,11 +67,24 @@ func (l ListenConfig) newListenConfig() *tfo.ListenConfig {
 }
 
 func (l ListenConfig) Listen(ctx context.Context, network, address string) (net.Listener, error) {
+	if network == "unix" {
+		_ = syscall.Unlink(address)
+		if dir := filepath.Dir(address); dir != "." {
+			_ = os.MkdirAll(dir, 0o755)
+		}
+	}
 	address, err := preResolve(network, address)
 	if err != nil {
 		return nil, err
 	}
-	return l.newListenConfig().Listen(ctx, network, address)
+	ln, err := l.newListenConfig().Listen(ctx, network, address)
+	if err != nil {
+		return nil, err
+	}
+	if network == "unix" {
+		_ = os.Chmod(address, 0o666)
+	}
+	return ln, nil
 }
 
 func (l ListenConfig) ListenPacket(ctx context.Context, network, address string) (net.PacketConn, error) {
@@ -82,6 +97,8 @@ func (l ListenConfig) ListenPacket(ctx context.Context, network, address string)
 
 func preResolve(network, address string) (string, error) {
 	switch network { // like net.Resolver.internetAddrList but filter domain to avoid call net.Resolver.lookupIPAddr
+	case "unix":
+		return address, nil
 	case "tcp", "tcp4", "tcp6", "udp", "udp4", "udp6", "ip", "ip4", "ip6":
 		if host, port, err := net.SplitHostPort(address); err == nil {
 			switch host {

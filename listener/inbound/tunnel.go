@@ -83,7 +83,7 @@ func (t *Tunnel) Listen(tunnel C.Tunnel) error {
 		for _, network := range t.config.Network {
 			switch network {
 			case "tcp":
-				ttl, err := LT.New(addr, t.config.Target, t.config.SpecialProxy, lc, tunnel, t.Additions()...)
+				ttl, err := LT.New(t.Network(), addr, t.config.Target, t.config.SpecialProxy, lc, tunnel, t.Additions()...)
 				if err != nil {
 					return err
 				}

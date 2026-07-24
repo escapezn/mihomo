@@ -5,9 +5,6 @@ import (
 	"errors"
 	"io"
 	"net"
-	"os"
-	"path/filepath"
-	"syscall"
 
 	"github.com/metacubex/mihomo/adapter/inbound"
 	N "github.com/metacubex/mihomo/common/net"
@@ -71,20 +68,9 @@ func NewWithConfig(network string, config LC.AuthServer, lc C.InboundListenConfi
 		}
 	}
 
-	if network == "unix" {
-		_ = syscall.Unlink(config.Listen)
-		if dir := filepath.Dir(config.Listen); dir != "." {
-			_ = os.MkdirAll(dir, 0o755)
-		}
-	}
-
 	l, err := lc.Listen(context.Background(), network, config.Listen)
 	if err != nil {
 		return nil, err
-	}
-
-	if network == "unix" {
-		_ = os.Chmod(config.Listen, 0o666)
 	}
 
 	tlsConfig := &tls.Config{Time: ntp.Now}

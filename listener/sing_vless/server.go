@@ -38,7 +38,7 @@ type Listener struct {
 	decryption *encryption.ServerInstance
 }
 
-func New(config LC.VlessServer, lc C.InboundListenConfig, tunnel C.Tunnel, additions ...inbound.Addition) (sl *Listener, err error) {
+func New(network string, config LC.VlessServer, lc C.InboundListenConfig, tunnel C.Tunnel, additions ...inbound.Addition) (sl *Listener, err error) {
 	if len(additions) == 0 {
 		additions = []inbound.Addition{
 			inbound.WithInName("DEFAULT-VLESS"),
@@ -258,7 +258,7 @@ func New(config LC.VlessServer, lc C.InboundListenConfig, tunnel C.Tunnel, addit
 		addr := addr
 
 		//TCP
-		l, err := lc.Listen(context.Background(), "tcp", addr)
+		l, err := lc.Listen(context.Background(), network, addr)
 		if err != nil {
 			return nil, err
 		}

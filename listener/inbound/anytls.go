@@ -80,7 +80,7 @@ func (v *AnyTLS) Address() string {
 // Listen implements constant.InboundListener
 func (v *AnyTLS) Listen(tunnel C.Tunnel) error {
 	var err error
-	v.l, err = anytls.New(v.vs, v.ListenConfig(), tunnel, v.Additions()...)
+	v.l, err = anytls.New(v.Network(), v.vs, v.ListenConfig(), tunnel, v.Additions()...)
 	if err != nil {
 		return err
 	}
