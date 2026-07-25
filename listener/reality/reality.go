@@ -11,6 +11,7 @@ import (
 	"time"
 
 	N "github.com/metacubex/mihomo/common/net"
+	"github.com/metacubex/mihomo/common/utils"
 	C "github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/listener/inner"
 	"github.com/metacubex/mihomo/log"
@@ -37,7 +38,11 @@ type Config struct {
 func (c Config) Build(tunnel C.Tunnel) (*Builder, error) {
 	realityConfig := &utls.RealityConfig{}
 	realityConfig.SessionTicketsDisabled = true
-	realityConfig.Type = "tcp"
+	if utils.IsUnixPath(c.Dest) {
+		realityConfig.Type = "unix"
+	} else {
+		realityConfig.Type = "tcp"
+	}
 	realityConfig.Dest = c.Dest
 	realityConfig.Time = ntp.Now
 	realityConfig.ServerNames = make(map[string]bool)
@@ -74,6 +79,13 @@ func (c Config) Build(tunnel C.Tunnel) (*Builder, error) {
 	}
 
 	realityConfig.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+		if network == "unix" {
+			if c.Proxy != "" {
+				log.Warnln("REALITY: proxy %q is ignored for Unix socket dest: %s", c.Proxy, c.Dest)
+			}
+			var d net.Dialer
+			return d.DialContext(ctx, "unix", address)
+		}
 		return inner.HandleTcp(tunnel, address, c.Proxy)
 	}
 
