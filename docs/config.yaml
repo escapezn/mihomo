@@ -110,6 +110,11 @@ external-ui-name: xd
 # 目前支持下载zip,tgz格式的压缩包
 external-ui-url: "https://github.com/MetaCubeX/metacubexd/archive/refs/heads/gh-pages.zip"
 
+# 自定义内核更新 url (版本号从 baseURL + "version.txt" 自动获取)
+# core-update-url:
+#   release: "https://github.com/MetaCubeX/mihomo/releases/latest/download/"
+#   alpha: "https://github.com/MetaCubeX/mihomo/releases/download/Prerelease-Alpha/"
+
 # 在RESTful API端口上开启DOH服务器
 # ！！！该URL不会验证secret， 如果开启请自行保证安全问题 ！！！
 external-doh-server: /dns-query

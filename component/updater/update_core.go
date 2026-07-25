@@ -23,18 +23,33 @@ import (
 	"github.com/metacubex/http"
 )
 
+var (
+	coreReleaseURL string
+	coreAlphaURL   string
+)
+
 const (
-	baseReleaseURL    = "https://github.com/MetaCubeX/mihomo/releases/latest/download/"
-	versionReleaseURL = "https://github.com/MetaCubeX/mihomo/releases/latest/download/version.txt"
-
-	baseAlphaURL    = "https://github.com/MetaCubeX/mihomo/releases/download/Prerelease-Alpha/"
-	versionAlphaURL = "https://github.com/MetaCubeX/mihomo/releases/download/Prerelease-Alpha/version.txt"
-
 	// MaxPackageFileSize is a maximum package file length in bytes. The largest
 	// package whose size is limited by this constant currently has the size of
 	// approximately 32 MiB.
 	MaxPackageFileSize = 32 * 1024 * 1024
 )
+
+func CoreReleaseURL() string {
+	return coreReleaseURL
+}
+
+func SetCoreReleaseURL(url string) {
+	coreReleaseURL = url
+}
+
+func CoreAlphaURL() string {
+	return coreAlphaURL
+}
+
+func SetCoreAlphaURL(url string) {
+	coreAlphaURL = url
+}
 
 const (
 	ReleaseChannel = "release"
@@ -86,20 +101,18 @@ func (u *CoreUpdater) Update(currentExePath string, channel string, force bool) 
 		return fmt.Errorf("check currentExePath %q: %w", currentExePath, err)
 	}
 
-	baseURL := baseAlphaURL
-	versionURL := versionAlphaURL
+	baseURL := CoreAlphaURL()
 	switch strings.ToLower(channel) {
 	case ReleaseChannel:
-		baseURL = baseReleaseURL
-		versionURL = versionReleaseURL
+		baseURL = CoreReleaseURL()
 	case AlphaChannel:
 		break
 	default: // auto
 		if !strings.HasPrefix(C.Version, "alpha") {
-			baseURL = baseReleaseURL
-			versionURL = versionReleaseURL
+			baseURL = CoreReleaseURL()
 		}
 	}
+	versionURL := baseURL + "version.txt"
 
 	latestVersion, err := u.getLatestVersion(versionURL)
 	if err != nil {

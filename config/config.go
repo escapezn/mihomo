@@ -54,6 +54,7 @@ type General struct {
 	Interface         string                  `json:"interface-name"`
 	RoutingMark       int                     `json:"routing-mark"`
 	GeoXUrl           GeoXUrl                 `json:"geox-url"`
+	CoreUpdateUrl     CoreUpdateUrl           `json:"core-update-url"`
 	GeoAutoUpdate     bool                    `json:"geo-auto-update"`
 	GeoUpdateInterval int                     `json:"geo-update-interval"`
 	GeodataMode       bool                    `json:"geodata-mode"`
@@ -101,6 +102,12 @@ type GeoXUrl struct {
 	Mmdb    string `json:"mmdb"`
 	ASN     string `json:"asn"`
 	GeoSite string `json:"geo-site"`
+}
+
+// CoreUpdateUrl config
+type CoreUpdateUrl struct {
+	Release string `json:"release"`
+	Alpha   string `json:"alpha"`
 }
 
 // Controller config
@@ -372,6 +379,11 @@ type RawGeoXUrl struct {
 	GeoSite string `yaml:"geosite" json:"geosite"`
 }
 
+type RawCoreUpdateUrl struct {
+	Release string `yaml:"release" json:"release"`
+	Alpha   string `yaml:"alpha" json:"alpha"`
+}
+
 type RawSniffer struct {
 	Enable          bool     `yaml:"enable" json:"enable"`
 	OverrideDest    bool     `yaml:"override-destination" json:"override-destination"`
@@ -470,6 +482,7 @@ type RawConfig struct {
 	Experimental  RawExperimental           `yaml:"experimental" json:"experimental"`
 	Profile       RawProfile                `yaml:"profile" json:"profile"`
 	GeoXUrl       RawGeoXUrl                `yaml:"geox-url" json:"geox-url"`
+	CoreUpdateUrl RawCoreUpdateUrl          `yaml:"core-update-url" json:"core-update-url"`
 	Sniffer       RawSniffer                `yaml:"sniffer" json:"sniffer"`
 	TLS           RawTLS                    `yaml:"tls" json:"tls"`
 
@@ -590,6 +603,10 @@ func DefaultRawConfig() *RawConfig {
 			ASN:     "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/GeoLite2-ASN.mmdb",
 			GeoIp:   "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip.dat",
 			GeoSite: "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geosite.dat",
+		},
+		CoreUpdateUrl: RawCoreUpdateUrl{
+			Release:        "https://github.com/MetaCubeX/mihomo/releases/latest/download/",
+			Alpha:          "https://github.com/MetaCubeX/mihomo/releases/download/Prerelease-Alpha/",
 		},
 		Sniffer: RawSniffer{
 			Enable:          false,
@@ -816,6 +833,10 @@ func parseGeneral(cfg *RawConfig) (*General, error) {
 			Mmdb:    cfg.GeoXUrl.Mmdb,
 			ASN:     cfg.GeoXUrl.ASN,
 			GeoSite: cfg.GeoXUrl.GeoSite,
+		},
+		CoreUpdateUrl: CoreUpdateUrl{
+			Release:        cfg.CoreUpdateUrl.Release,
+			Alpha:          cfg.CoreUpdateUrl.Alpha,
 		},
 		GeoAutoUpdate:     cfg.GeoAutoUpdate,
 		GeoUpdateInterval: cfg.GeoUpdateInterval,
