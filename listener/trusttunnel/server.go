@@ -118,7 +118,7 @@ func New(network string, config LC.TrustTunnelServer, lc C.InboundListenConfig, 
 		if listenUDP {
 			udpAddr := addr
 			if network == "unix" && config.Port != "" {
-				udpAddr = net.JoinHostPort("", config.Port)
+				udpAddr = net.JoinHostPort("127.0.0.1", config.Port)
 			}
 			udpConn, err = lc.ListenPacket(context.Background(), "udp", udpAddr)
 			if err != nil {
