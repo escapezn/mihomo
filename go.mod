@@ -6,35 +6,35 @@ require (
 	github.com/bahlo/generic-list-go v0.2.0
 	github.com/coreos/go-iptables v0.8.0
 	github.com/dlclark/regexp2 v1.12.0
-	github.com/enfein/mieru/v3 v3.34.0
+	github.com/enfein/mieru/v3 v3.35.0
 	github.com/gobwas/ws v1.4.0
 	github.com/gofrs/uuid/v5 v5.4.0
 	github.com/golang/snappy v1.0.0
 	github.com/metacubex/age v0.0.0-20260603010618-28d156b4ea78
-	github.com/metacubex/amneziawg-go v0.0.0-20260612143004-19b4f1cdd5ec
+	github.com/metacubex/amneziawg-go v0.0.0-20260726091836-16af3a7a9a29
 	github.com/metacubex/bart v0.29.0
 	github.com/metacubex/bbolt v0.0.0-20260706163408-d4ec34ad7c48
 	github.com/metacubex/blake3 v0.1.0
 	github.com/metacubex/chacha v0.1.5
 	github.com/metacubex/chi v0.1.1
-	github.com/metacubex/connect-ip-go v0.0.0-20260412152424-e1625567920a
+	github.com/metacubex/connect-ip-go v0.0.0-20260727083417-67ccdb0cf771
 	github.com/metacubex/cpu v0.1.1
 	github.com/metacubex/edwards25519 v1.2.0
 	github.com/metacubex/fswatch v0.1.1
 	github.com/metacubex/gopacket v1.1.20-0.20230608035415-7e2f98a3e759
 	github.com/metacubex/http v0.1.7
-	github.com/metacubex/jls-quic-go v0.0.0-20260723162623-1cc413101174
+	github.com/metacubex/jls-quic-go v0.0.0-20260727080412-732f2fc9a34d
 	github.com/metacubex/jls-tls v0.0.0-20260723084315-67adc0e2f796
 	github.com/metacubex/kcp-go v0.0.0-20260105040817-550693377604
 	github.com/metacubex/mhurl v0.1.0
 	github.com/metacubex/mlkem v0.1.0
-	github.com/metacubex/quic-go v0.59.1-0.20260606115121-0662b57ad5bf
+	github.com/metacubex/quic-go v0.61.1-0.20260727080200-2548683b76f4
 	github.com/metacubex/randv2 v0.2.0
 	github.com/metacubex/restls-client-go v0.1.9
 	github.com/metacubex/sevenzip v1.6.4
 	github.com/metacubex/sing v0.5.7
 	github.com/metacubex/sing-mux v0.3.10
-	github.com/metacubex/sing-quic v0.0.0-20260720020849-6c62e17225e8
+	github.com/metacubex/sing-quic v0.0.0-20260726014900-38b0e9295f51
 	github.com/metacubex/sing-shadowsocks v0.2.12
 	github.com/metacubex/sing-shadowsocks2 v0.2.7
 	github.com/metacubex/sing-tun v0.4.21
@@ -42,7 +42,7 @@ require (
 	github.com/metacubex/sing-wireguard v0.0.0-20260520151737-7e7c7c1b854c
 	github.com/metacubex/smux v0.0.0-20260105030934-d0c8756d3141
 	github.com/metacubex/ssh v0.1.0
-	github.com/metacubex/tailscale v0.0.0-20260726032923-aa759d2e890e
+	github.com/metacubex/tailscale v0.0.0-20260727131202-3748fbaa292c
 	github.com/metacubex/tfo-go v0.0.0-20260623020846-376a77860b8c
 	github.com/metacubex/tls v0.1.7
 	github.com/metacubex/utls v1.8.7
