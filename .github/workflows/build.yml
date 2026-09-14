@@ -36,6 +36,14 @@ jobs:
           # arm64
           - { goos: linux, goarch: arm64, output: arm64, debian: arm64, rpm: aarch64, pacman: aarch64}
 
+          # Windows
+          - { goos: windows, goarch: amd64, goamd64: v1, output: amd64-compatible }
+          - { goos: windows, goarch: amd64, goamd64: v3, output: amd64 }
+          - { goos: windows, goarch: amd64, goamd64: v1, output: amd64-v1 }
+          - { goos: windows, goarch: amd64, goamd64: v2, output: amd64-v2 }
+          - { goos: windows, goarch: amd64, goamd64: v3, output: amd64-v3 }
+          - { goos: windows, goarch: arm64, output: arm64 }
+
           # Go 1.23 is the last release that requires Linux kernel version 2.6.32 or later. Go 1.24 will require Linux kernel version 3.2 or later.
           - { goos: linux, goarch: amd64, goamd64: v1, output: amd64-v1-go123, goversion: '1.23', test: test }
           - { goos: linux, goarch: amd64, goamd64: v2, output: amd64-v2-go123, goversion: '1.23' }
@@ -110,9 +118,14 @@ jobs:
       run: |
         go env
         go build -v -trimpath -ldflags "${BUILDTAG} -X 'github.com/metacubex/mihomo/constant.Version=${VERSION}' -X 'github.com/metacubex/mihomo/constant.BuildTime=${BUILDTIME}' -w -s -buildid="
-        cp mihomo mihomo-${{matrix.jobs.goos}}-${{matrix.jobs.output}}
-        gzip -c mihomo-${{matrix.jobs.goos}}-${{matrix.jobs.output}} > mihomo-${{matrix.jobs.goos}}-${{matrix.jobs.output}}-${VERSION}.gz
-        rm mihomo-${{matrix.jobs.goos}}-${{matrix.jobs.output}}
+        if [ "${{matrix.jobs.goos}}" = "windows" ]; then
+          cp mihomo.exe mihomo-${{matrix.jobs.goos}}-${{matrix.jobs.output}}.exe
+          zip -r mihomo-${{matrix.jobs.goos}}-${{matrix.jobs.output}}-${VERSION}.zip mihomo-${{matrix.jobs.goos}}-${{matrix.jobs.output}}.exe
+        else
+          cp mihomo mihomo-${{matrix.jobs.goos}}-${{matrix.jobs.output}}
+          gzip -c mihomo-${{matrix.jobs.goos}}-${{matrix.jobs.output}} > mihomo-${{matrix.jobs.goos}}-${{matrix.jobs.output}}-${VERSION}.gz
+          rm mihomo-${{matrix.jobs.goos}}-${{matrix.jobs.output}}
+        fi
 
     - name: Package DEB
       if: matrix.jobs.debian != ''

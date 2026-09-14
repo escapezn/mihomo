@@ -19,7 +19,9 @@ jobs:
       matrix:
         os:
           - 'ubuntu-latest' # amd64 linux
+          - 'windows-latest' # amd64 windows
           - 'ubuntu-24.04-arm' # arm64 linux
+          - 'windows-11-arm' # arm64 windows
         go-version:
           - '1.26'
           - '1.25'
