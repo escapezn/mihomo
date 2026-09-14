@@ -44,16 +44,6 @@ jobs:
           - { goos: windows, goarch: amd64, goamd64: v3, output: amd64-v3 }
           - { goos: windows, goarch: arm64, output: arm64 }
 
-          # Go 1.23 is the last release that requires Linux kernel version 2.6.32 or later. Go 1.24 will require Linux kernel version 3.2 or later.
-          - { goos: linux, goarch: amd64, goamd64: v1, output: amd64-v1-go123, goversion: '1.23', test: test }
-          - { goos: linux, goarch: amd64, goamd64: v2, output: amd64-v2-go123, goversion: '1.23' }
-          - { goos: linux, goarch: amd64, goamd64: v3, output: amd64-v3-go123, goversion: '1.23' }
-
-          # only for test
-          - { goos: linux, goarch: amd64, goamd64: v1, output: amd64-v1-go120, goversion: '1.20', test: test }
-          - { goos: linux, goarch: amd64, goamd64: v2, output: amd64-v2-go120, goversion: '1.20' }
-          - { goos: linux, goarch: amd64, goamd64: v3, output: amd64-v3-go120, goversion: '1.20' }
-
     steps:
     - uses: actions/checkout@v6
 
