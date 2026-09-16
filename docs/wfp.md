@@ -1,8 +1,8 @@
 # Windows WFP
 
-`driver: wfp` 通过 WinDivert 2.2 接管本机其他进程的出站 TCP/UDP，使用 mihomo 的规则、代理和 DNS 处理。支持 Windows x86/x64，需管理员权限。
+`intercept-mode: wfp` 通过 WinDivert 2.2 接管本机其他进程的出站 TCP/UDP，使用 mihomo 的规则、代理和 DNS 处理。支持 Windows x86/x64，需管理员权限。
 
-`stack: system` 使用 Windows TCP 协议栈并直接处理 UDP；`mixed` 使用 Windows TCP 协议栈和 gVisor UDP；`gvisor` 使用 gVisor 处理 TCP/UDP。
+`stack: system` 使用 Windows TCP 协议栈并直接处理 UDP；`mixed` 使用 Windows TCP 协议栈和 gVisor UDP；`gvisor` 使用 gVisor 处理 TCP/UDP；`mips` 使用 mihomo IP stack（MIPS）处理 TCP/UDP。
 
 `system` 和 `mixed` 会为当前程序添加 TCP 入站防火墙规则，关闭监听器时移除。
 
@@ -13,8 +13,8 @@ dns:
     - 1.1.1.1
 tun:
   enable: true
-  driver: wfp
-  stack: gvisor
+  intercept-mode: wfp
+  stack: mips
   dns-hijack:
     - any:53
 ```
@@ -25,7 +25,7 @@ tun:
 go build -tags with_gvisor -o mihomo.exe .
 ```
 
-`driver` 可选 `normal`（默认，普通 TUN 驱动）或 `wfp`（Windows WFP 接管）。
+`intercept-mode` 可选 `vnic`（默认，通过 TUN 虚拟网卡接管）或 `wfp`（Windows WFP 接管）。
 
 WFP 使用 `mtu`（默认 1500）、`dns-hijack`、`udp-timeout`（秒，默认 300）、`route-address`、`route-exclude-address`、`include-interface`、`exclude-interface`、`exclude-src-port` 和 `exclude-dst-port`。每个进程可启用一个 WFP 监听器。
 
@@ -35,7 +35,7 @@ WFP 使用 `mtu`（默认 1500）、`dns-hijack`、`udp-timeout`（秒，默认 
 
 驱动和许可证位于 `component/windivert/driver`。嵌入的驱动会自动释放到运行账户 Local AppData 下的 `mihomo\windivert\2.2.2` 并加载。
 
-管理员可运行三种协议栈的驱动集成测试：
+管理员可运行驱动集成测试：
 
 ```powershell
 $env:MIHOMO_WFP_TEST = '1'

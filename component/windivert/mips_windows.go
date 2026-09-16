@@ -1,0 +1,135 @@
+//go:build windows && (amd64 || 386)
+
+package windivert
+
+import (
+	"encoding/binary"
+	"fmt"
+	"time"
+
+	"github.com/metacubex/mipstack"
+	"github.com/metacubex/sing/common/buf"
+	M "github.com/metacubex/sing/common/metadata"
+	N "github.com/metacubex/sing/common/network"
+)
+
+func (t *Tun) startMIPS() error {
+	ipStack, err := mipstack.New(mipstack.Config{
+		Promiscuous: true,
+		MTU:         t.options.MTU,
+		TCP: mipstack.TCPSocketDefaults{
+			KeepAlive: true,
+			// Limit bursts from the local Windows TCP peer.
+			MaximumReceiveBuffer: 1 << 20,
+			KeepAliveConfig: mipstack.KeepAliveConfig{
+				Idle: 15 * time.Second, Interval: 15 * time.Second,
+			},
+		},
+	})
+	if err != nil {
+		return err
+	}
+	t.closeStack = func() { _ = ipStack.Close() }
+	if _, err = mipstack.NewTCPForwarder(ipStack, mipstack.TCPForwarderOptions{}, t.forwardMIPSTCP); err != nil {
+		return err
+	}
+	if _, err = mipstack.NewUDPForwarder(ipStack, mipstack.UDPForwarderOptions{}, t.forwardMIPSUDP); err != nil {
+		return err
+	}
+	if err = ipStack.Start(); err != nil {
+		return err
+	}
+	t.deliver = func(p []byte, info packetInfo, _ address) {
+		// Write consumes p before returning.
+		_, _ = ipStack.Write([][]byte{p[:info.size]}, 0)
+	}
+	t.running.Add(1)
+	go func() {
+		defer t.running.Done()
+		batch := newPacketWriter(t)
+		buffers := make([][]byte, ipStack.BatchSize())
+		for i := range buffers {
+			buffers[i] = make([]byte, t.options.MTU)
+		}
+		sizes := make([]int, len(buffers))
+		for {
+			n, err := ipStack.Read(buffers, sizes, 0)
+			for i := 0; i < n; i++ {
+				p := buffers[i][:sizes[i]]
+				addr, _ := t.responseInterface(packetDestination(p))
+				addr.Flags = flagIPChecksum | flagTCPChecksum | flagUDPChecksum
+				batch.append(addr, packetKey(p), p)
+			}
+			batch.flush()
+			if err != nil {
+				if t.ctx.Err() == nil {
+					t.close(fmt.Errorf("read MIPS packet: %w", err))
+				}
+				return
+			}
+		}
+	}()
+	return nil
+}
+
+func (t *Tun) forwardMIPSTCP(request *mipstack.TCPForwarderRequest) {
+	flow := request.Flow()
+	conn, err := request.Accept(t.ctx)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+	if err := t.options.Handler.NewConnection(t.ctx, conn, M.Metadata{
+		Source: M.SocksaddrFromNetIP(flow.Source), Destination: M.SocksaddrFromNetIP(flow.Destination),
+	}); err != nil {
+		_ = conn.SetLinger(0)
+	}
+}
+
+func (t *Tun) forwardMIPSUDP(request *mipstack.UDPForwarderRequest) {
+	flow := request.Flow()
+	responder, err := request.DetachForReplies()
+	if err != nil {
+		return
+	}
+	t.options.Handler.NewPacket(t.ctx, flow.Source, buf.As(request.Payload()).ToOwned(), M.Metadata{
+		Source: M.SocksaddrFromNetIP(flow.Source), Destination: M.SocksaddrFromNetIP(flow.Destination),
+	}, func(N.PacketConn) N.PacketWriter { return &mipsUDPWriter{responder: responder} })
+}
+
+type mipsUDPWriter struct {
+	responder *mipstack.UDPForwarderResponder
+}
+
+func (w *mipsUDPWriter) WritePacket(buffer *buf.Buffer, source M.Socksaddr) error {
+	defer buffer.Release()
+	_, err := w.responder.ReplyFrom(buffer.Bytes(), source.AddrPort())
+	return err
+}
+
+func completeChecksums(p []byte, info packetInfo, flags uint32) bool {
+	// Windows can leave the IPv4 checksum zero even with IPChecksum set.
+	if info.source.Addr().Is4() && (flags&flagIPChecksum == 0 || binary.BigEndian.Uint16(p[10:]) == 0) {
+		p[10], p[11] = 0, 0
+		binary.BigEndian.PutUint16(p[10:], mipstack.InternetChecksum(p[:info.offset]))
+	}
+	payload := p[info.offset:info.size]
+	checksumOffset, checksumFlag := 16, uint32(flagTCPChecksum)
+	if info.protocol == 17 {
+		length := int(binary.BigEndian.Uint16(payload[4:]))
+		if length < 8 || length > len(payload) {
+			return false
+		}
+		payload = payload[:length]
+		checksumOffset, checksumFlag = 6, flagUDPChecksum
+	}
+	if flags&checksumFlag == 0 {
+		payload[checksumOffset], payload[checksumOffset+1] = 0, 0
+		checksum, _ := mipstack.IPTransportChecksum(info.source.Addr(), info.destination.Addr(), int(info.protocol), payload)
+		if info.protocol == 17 && checksum == 0 {
+			checksum = 0xffff
+		}
+		binary.BigEndian.PutUint16(payload[checksumOffset:], checksum)
+	}
+	return true
+}

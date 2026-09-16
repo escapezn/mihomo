@@ -35,7 +35,9 @@ func TestTCPRedirect(t *testing.T) {
 		}
 		p[headerLen+12], p[headerLen+13] = 0x50, 2
 		info := packetInfo{flow: flow{source: source, destination: destination, protocol: 6}, offset: headerLen}
-		r.redirect(p, info)
+		if !r.redirect(p, info) {
+			t.Fatal("TCP redirect failed")
+		}
 		redirected, ok := parsePacket(p)
 		if !ok || redirected.destination != netip.AddrPortFrom(source.Addr(), r.port(source.Addr())) ||
 			redirected.source.Addr() != destination.Addr() {
