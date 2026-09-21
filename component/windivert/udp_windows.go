@@ -55,5 +55,6 @@ func (w *udpWriter) WritePacket(buffer *buf.Buffer, source M.Socksaddr) error {
 	binary.BigEndian.PutUint16(p[headerLen+2:], w.destination.Port())
 	binary.BigEndian.PutUint16(p[headerLen+4:], uint16(8+buffer.Len()))
 	copy(p[headerLen+8:], buffer.Bytes())
-	return w.tun.queuePacket(p, w.addr)
+	key := uint32(source.Port)<<16 | uint32(w.destination.Port())
+	return w.tun.queuePacket(p, w.addr, key)
 }

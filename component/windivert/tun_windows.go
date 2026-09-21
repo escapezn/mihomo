@@ -203,10 +203,19 @@ func (t *Tun) readLoop() {
 		n, count  int
 		err       error
 	}
-	free := make(chan *receivedBatch, 2)
-	ready := make(chan *receivedBatch)
-	for i := 0; i < 2; i++ {
-		free <- &receivedBatch{packets: make([]byte, batchBytes), addresses: make([]address, batchSize)}
+	const ringDepth = 6
+	mtu := int(t.options.MTU)
+	if mtu <= 0 {
+		mtu = 1500
+	}
+	recvSize := batchSize * mtu
+	if recvSize < 65536 {
+		recvSize = 65536
+	}
+	free := make(chan *receivedBatch, ringDepth)
+	ready := make(chan *receivedBatch, ringDepth)
+	for i := 0; i < ringDepth; i++ {
+		free <- &receivedBatch{packets: make([]byte, recvSize), addresses: make([]address, batchSize)}
 	}
 	t.running.Add(1)
 	go func() {
@@ -256,9 +265,9 @@ func (t *Tun) readLoop() {
 				return
 			}
 			packet := p[read : read+size]
-			addr, inject := t.processPacket(packet, addresses[i])
+			addr, key, inject := t.processPacket(packet, addresses[i])
 			if inject {
-				batch.append(addr, packetKey(packet), packet)
+				batch.append(addr, key, packet)
 			}
 			read += size
 		}
@@ -267,23 +276,27 @@ func (t *Tun) readLoop() {
 	}
 }
 
-// processPacket returns the address and whether the packet needs reinjection.
-func (t *Tun) processPacket(p []byte, addr address) (address, bool) {
+// processPacket returns the address, flow key, and whether the packet needs reinjection.
+func (t *Tun) processPacket(p []byte, addr address) (address, uint32, bool) {
 	info, ok := parsePacket(p)
+	var key uint32
+	if ok {
+		key = uint32(info.source.Port())<<16 | uint32(info.destination.Port())
+	}
 	if ok && t.tcp != nil && info.protocol == 6 && info.source.Port() == t.tcp.port(info.source.Addr()) {
 		// Expired or unsolicited relay connections must not escape to the network.
-		return address{IfIdx: addr.IfIdx, SubIfIdx: addr.SubIfIdx}, t.tcp.reply(p, info)
+		return address{IfIdx: addr.IfIdx, SubIfIdx: addr.SubIfIdx}, key, t.tcp.reply(p, info)
 	}
 	if !ok || !t.selected(info, addr) || !t.capture(info) {
-		return addr, true
+		return addr, key, true
 	}
 	if t.options.Stack == "mips" && !completeChecksums(p, info, addr.Flags) {
-		return address{}, false
+		return address{}, 0, false
 	}
 	// Replies are inbound on this interface; zero checksum flags request recalculation.
 	addr = address{IfIdx: addr.IfIdx, SubIfIdx: addr.SubIfIdx}
 	if info.protocol == 6 && t.tcp != nil {
-		return addr, t.tcp.redirect(p, info)
+		return addr, key, t.tcp.redirect(p, info)
 	}
 	if t.options.Stack != "system" && (t.lastSource != info.source.Addr() || t.lastAddress != addr) {
 		t.interfaceMu.Lock()
@@ -292,7 +305,7 @@ func (t *Tun) processPacket(p []byte, addr address) (address, bool) {
 		t.lastSource, t.lastAddress = info.source.Addr(), addr
 	}
 	t.deliver(p, info, addr)
-	return address{}, false
+	return address{}, 0, false
 }
 
 func (t *Tun) responseInterface(destination netip.Addr) (address, bool) {

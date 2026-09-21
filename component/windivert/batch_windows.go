@@ -3,6 +3,7 @@
 package windivert
 
 import (
+	"encoding/binary"
 	"net"
 	"runtime"
 
@@ -71,8 +72,29 @@ type packetWriter struct {
 func newPacketWriter(t *Tun) *packetWriter { return &packetWriter{tun: t} }
 
 func packetKey(p []byte) uint32 {
-	info, _ := parsePacket(p)
-	return uint32(info.source.Port())<<16 | uint32(info.destination.Port())
+	if len(p) < 24 {
+		return 0
+	}
+	var offset int
+	switch p[0] >> 4 {
+	case 4:
+		offset = int(p[0]&0x0f) * 4
+	case 6:
+		if len(p) < 44 {
+			return 0
+		}
+		if p[6] == 0 || p[6] == 43 || p[6] == 60 {
+			info, _ := parsePacket(p)
+			return uint32(info.source.Port())<<16 | uint32(info.destination.Port())
+		}
+		offset = 40
+	default:
+		return 0
+	}
+	if offset+4 > len(p) {
+		return 0
+	}
+	return binary.BigEndian.Uint32(p[offset:])
 }
 
 func outputIndex(key uint32) int {
@@ -123,13 +145,13 @@ func (w *packetWriter) flush() {
 	}
 }
 
-func (t *Tun) queuePacket(p []byte, addr address) error {
+func (t *Tun) queuePacket(p []byte, addr address, key uint32) error {
 	if t.ctx.Err() != nil {
 		_ = pool.Put(p)
 		return net.ErrClosed
 	}
 	select {
-	case t.output[outputIndex(packetKey(p))].datagrams <- queuedPacket{p, addr}:
+	case t.output[outputIndex(key)].datagrams <- queuedPacket{p, addr}:
 		return nil
 	case <-t.ctx.Done():
 		_ = pool.Put(p)
@@ -141,7 +163,7 @@ func (t *Tun) startOutput() {
 	t.batchPool.New = func() any { return newPacketBatch(t) }
 	t.running.Add(ioParallelism)
 	for sender := range t.output {
-		output := packetOutput{batches: make(chan *packetBatch, 2), datagrams: make(chan queuedPacket, batchSize)}
+		output := packetOutput{batches: make(chan *packetBatch, 4), datagrams: make(chan queuedPacket, batchSize)}
 		t.output[sender] = output
 		go func(sender int) {
 			defer t.running.Done()

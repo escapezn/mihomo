@@ -46,7 +46,7 @@ func TestTCPRedirect(t *testing.T) {
 		reply := packetInfo{flow: flow{source: redirected.destination, destination: redirected.source, protocol: 6}, offset: headerLen}
 		rewriteTCP(p, reply, reply.source, reply.destination)
 		device := &Tun{tcp: r}
-		addr, inject := device.processPacket(p, address{Flags: ^uint32(0), IfIdx: 3, SubIfIdx: 4})
+		addr, _, inject := device.processPacket(p, address{Flags: ^uint32(0), IfIdx: 3, SubIfIdx: 4})
 		if !inject || addr != (address{IfIdx: 3, SubIfIdx: 4}) {
 			t.Fatalf("incorrect reply injection: address=%+v inject=%v", addr, inject)
 		}
