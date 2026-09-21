@@ -163,7 +163,7 @@ func (t *Tun) startOutput() {
 	t.batchPool.New = func() any { return newPacketBatch(t) }
 	t.running.Add(ioParallelism)
 	for sender := range t.output {
-		output := packetOutput{batches: make(chan *packetBatch, 4), datagrams: make(chan queuedPacket, batchSize)}
+		output := packetOutput{batches: make(chan *packetBatch, 16), datagrams: make(chan queuedPacket, batchSize)}
 		t.output[sender] = output
 		go func(sender int) {
 			defer t.running.Done()
