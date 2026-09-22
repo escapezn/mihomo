@@ -43,16 +43,8 @@ func (t *Tun) startTCP() error {
 		return err
 	}
 	r.firewall = rule
-	lc := net.ListenConfig{
-		Control: func(network, address string, c syscall.RawConn) error {
-			return c.Control(func(fd uintptr) {
-				_ = windows.SetsockoptInt(windows.Handle(fd), windows.SOL_SOCKET, windows.SO_RCVBUF, 2*1024*1024)
-				_ = windows.SetsockoptInt(windows.Handle(fd), windows.SOL_SOCKET, windows.SO_SNDBUF, 2*1024*1024)
-			})
-		},
-	}
 	for i, network := range []string{"tcp4", "tcp6"} {
-		listener, err := lc.Listen(t.ctx, network, ":0")
+		listener, err := net.Listen(network, ":0")
 		if err != nil {
 			return err
 		}
@@ -99,10 +91,6 @@ func (r *tcpRedirect) accept(t *Tun, listener net.Listener) {
 		conn, err := listener.Accept()
 		if err != nil {
 			return
-		}
-		if tcpConn, ok := conn.(*net.TCPConn); ok {
-			_ = tcpConn.SetReadBuffer(2 * 1024 * 1024)
-			_ = tcpConn.SetWriteBuffer(2 * 1024 * 1024)
 		}
 		remote := conn.RemoteAddr().(*net.TCPAddr).AddrPort()
 		local := conn.LocalAddr().(*net.TCPAddr).AddrPort()

@@ -204,18 +204,10 @@ func (t *Tun) readLoop() {
 		err       error
 	}
 	const ringDepth = 6
-	mtu := int(t.options.MTU)
-	if mtu <= 0 {
-		mtu = 1500
-	}
-	recvSize := batchSize * mtu
-	if recvSize < 65536 {
-		recvSize = 65536
-	}
 	free := make(chan *receivedBatch, ringDepth)
 	ready := make(chan *receivedBatch, ringDepth)
 	for i := 0; i < ringDepth; i++ {
-		free <- &receivedBatch{packets: make([]byte, recvSize), addresses: make([]address, batchSize)}
+		free <- &receivedBatch{packets: make([]byte, batchBytes), addresses: make([]address, batchSize)}
 	}
 	t.running.Add(1)
 	go func() {
@@ -293,7 +285,10 @@ func (t *Tun) processPacket(p []byte, addr address) (address, uint32, bool) {
 	if t.options.Stack == "mips" && !completeChecksums(p, info, addr.Flags) {
 		return address{}, 0, false
 	}
-	// Replies are inbound on this interface; zero checksum flags request recalculation.
+	// Inbound reinjection to local listener: zero checksum flags request full kernel-mode
+	// recalculation by the WinDivert driver. Outbound packets under Windows hardware checksum
+	// offload often contain uncomputed/dirty checksums; setting valid checksum flags in user mode
+	// causes the driver to skip recalculation and the Windows TCP stack to drop the packet.
 	addr = address{IfIdx: addr.IfIdx, SubIfIdx: addr.SubIfIdx}
 	if info.protocol == 6 && t.tcp != nil {
 		return addr, key, t.tcp.redirect(p, info)
