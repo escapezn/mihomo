@@ -311,15 +311,7 @@ func startFallbackServer(t *testing.T, backend *httptest.Server, idleTimeout tim
 		t.Fatal(err)
 	}
 
-	tcpListener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	udpConn, err := net.ListenPacket("udp", tcpListener.Addr().String())
-	if err != nil {
-		_ = tcpListener.Close()
-		t.Fatal(err)
-	}
+	tcpListener, udpConn := listenTCPAndUDP(t)
 	s := NewService(ServiceOptions{
 		Ctx:      context.Background(),
 		Logger:   logger.NOP(),
@@ -405,6 +397,29 @@ func TestFallbackClientStopsReading(t *testing.T) {
 			}
 		})
 	}
+}
+
+// listenTCPAndUDP opens TCP and UDP on one port, as the inbound does. The free TCP
+// port may be one Windows keeps from UDP (the ranges Hyper-V and WinNAT exclude),
+// so another port is tried then.
+func listenTCPAndUDP(t *testing.T) (net.Listener, net.PacketConn) {
+	t.Helper()
+	var err error
+	for i := 0; i < 20; i++ {
+		var tcpListener net.Listener
+		tcpListener, err = net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var udpConn net.PacketConn
+		udpConn, err = net.ListenPacket("udp", tcpListener.Addr().String())
+		if err == nil {
+			return tcpListener, udpConn
+		}
+		_ = tcpListener.Close()
+	}
+	t.Fatal(err)
+	return nil, nil
 }
 
 func TestFallbackConnectReachesBackend(t *testing.T) {
