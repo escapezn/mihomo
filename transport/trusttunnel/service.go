@@ -5,9 +5,12 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/netip"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -103,6 +106,26 @@ const (
 )
 
 var errFallbackAddress = errors.New("fallback address is link-local, multicast, unspecified or a cloud metadata service")
+
+// ValidateFallback rejects malformed configuration before a listener is opened.
+// DNS and metadata-address checks remain in the dialer, where names are resolved.
+func ValidateFallback(address string) error {
+	if address == "" {
+		return nil
+	}
+	host, port, err := net.SplitHostPort(address)
+	if err != nil {
+		return fmt.Errorf("invalid TrustTunnel fallback %q: expected host:port: %w", address, err)
+	}
+	if host == "" || strings.ContainsAny(host, " /\\\t\r\n?#@") {
+		return fmt.Errorf("invalid TrustTunnel fallback %q: host is required, without a URL scheme or path", address)
+	}
+	number, err := strconv.ParseUint(port, 10, 16)
+	if err != nil || number == 0 {
+		return fmt.Errorf("invalid TrustTunnel fallback %q: port must be an integer from 1 to 65535", address)
+	}
+	return nil
+}
 
 // cloudMetadata are metadata services outside the link-local range, which the check
 // below covers already (169.254.169.254 and fe80::/10).
@@ -208,8 +231,25 @@ func NewService(options ServiceOptions) *Service {
 				// hosts are meant to stay internal.
 				r.Out.Host = r.In.Host
 				r.SetXForwarded()
+				if strings.EqualFold(r.In.Method, http.MethodConnect) { // any spelling: a lenient backend would take it
+					// Keep the site's rejection, but never give a backend a live
+					// client stream that it could turn into a CONNECT tunnel.
+					r.Out.Body = nil
+					r.Out.GetBody = nil
+					r.Out.ContentLength = 0
+					r.Out.TransferEncoding = nil
+					r.Out.Trailer = nil
+					r.Out.Header.Del("Content-Length")
+					r.Out.Header.Del("Transfer-Encoding")
+				}
 			},
 			ModifyResponse: func(response *http.Response) error {
+				if strings.EqualFold(response.Request.Method, http.MethodConnect) &&
+					((response.StatusCode >= 200 && response.StatusCode < 300) || response.StatusCode == http.StatusSwitchingProtocols) {
+					// ReverseProxy closes the backend body before ErrorHandler
+					// returns 502. A CONNECT upgrade must not bypass this check.
+					return errors.New("fallback backend accepted an unauthenticated CONNECT")
+				}
 				// Let this server stamp Date itself, as a Go front server such as Caddy
 				// does: it then comes last in an HTTP/2 response, instead of sorted among
 				// the backend's headers, where it would set the fallback apart.
@@ -486,8 +526,9 @@ func (s *Service) badRequest(ctx context.Context, request *http.Request, err err
 // returns true when it has handled the request.
 //
 // Every method goes to the backend, CONNECT included, so the backend's own
-// answer (status, headers, body) is what a prober sees for it too, instead of a
-// response the backend would never produce.
+// rejection (status, headers, body) is what a prober sees for it too. CONNECT
+// bodies are not forwarded, and successful or upgraded CONNECT responses become
+// 502 so a backend cannot accidentally provide an unauthenticated tunnel.
 //
 // The reverse proxy strips hop-by-hop headers, carries WebSocket upgrades, and
 // flushes streaming responses. A backend that fails to connect or to send

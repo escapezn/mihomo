@@ -2821,6 +2821,11 @@ listeners:
 
   - name: trusttunnel-in-1
     type: trusttunnel
+    # Optional plain HTTP cover backend (TLS terminates at this listener).
+    # Serve only the cover site here: clients control the forwarded Host.
+    # With fallback, HTTP/2 clients must negotiate ALPN h2; prior knowledge
+    # HTTP/2 without ALPN is not accepted. Unauthenticated CONNECT cannot tunnel.
+    # fallback: 127.0.0.1:8080
     port: 10821 # 支持使用ports格式，例如200,302 or 200,204,401-429,501-503
     listen: 0.0.0.0
     # routing-mark: 0 # 为监听socket设置routing-mark（仅支持linux）
