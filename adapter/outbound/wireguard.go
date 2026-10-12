@@ -656,6 +656,54 @@ func (w *WireGuard) takeOverDevice() error {
 	return nil
 }
 
+// WireGuardSerial returns the serial of the newest WireGuard outbound created so far.
+// Take it before collecting the proxies passed to CloseWireGuardDevicesExcept.
+func WireGuardSerial() uint64 {
+	return wireGuardSerial.Load()
+}
+
+// CloseWireGuardDevicesExcept closes the running devices of the WireGuard outbounds
+// created up to serial that are not among proxies. A proxy removed or renamed by a config
+// reload has no replacement to take its device over, and its outbound is otherwise closed
+// only by the GC, which doesn't happen while a connection still uses it.
+// Outbounds created after serial (e.g. by a provider update in the meantime) are kept.
+func CloseWireGuardDevicesExcept(serial uint64, proxies []C.Proxy) {
+	current := make(map[*WireGuard]struct{})
+	for _, proxy := range proxies {
+		if w := unwrapWireGuard(proxy.Adapter()); w != nil {
+			current[w] = struct{}{}
+		}
+	}
+
+	var outdated []*WireGuard
+	wireGuardDevicesMutex.Lock()
+	for _, w := range wireGuardDevices {
+		if _, ok := current[w]; !ok && w.serial <= serial {
+			outdated = append(outdated, w)
+		}
+	}
+	wireGuardDevicesMutex.Unlock()
+
+	for _, w := range outdated {
+		log.Debugln("[WG](%s) closing the device of the removed outbound", w.option.Name)
+		_ = w.Close()
+	}
+}
+
+func unwrapWireGuard(adapter C.ProxyAdapter) *WireGuard {
+	for adapter != nil {
+		switch a := adapter.(type) {
+		case *WireGuard:
+			return a
+		case *autoCloseProxyAdapter:
+			adapter = a.ProxyAdapter
+		default:
+			return nil
+		}
+	}
+	return nil
+}
+
 func (w *WireGuard) updateServerAddr(ctx context.Context) {
 	if w.option.RefreshServerIPInterval != 0 && time.Since(w.serverAddrTime.Load()) > time.Second*time.Duration(w.option.RefreshServerIPInterval) {
 		if w.serverAddrMutex.TryLock() {

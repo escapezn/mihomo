@@ -13,6 +13,7 @@ import (
 
 	"github.com/metacubex/mihomo/adapter"
 	"github.com/metacubex/mihomo/adapter/inbound"
+	"github.com/metacubex/mihomo/adapter/outbound"
 	"github.com/metacubex/mihomo/adapter/outboundgroup"
 	"github.com/metacubex/mihomo/component/auth"
 	"github.com/metacubex/mihomo/component/ca"
@@ -113,6 +114,7 @@ func ApplyConfig(cfg *config.Config, force bool) {
 
 	initInnerTcp()
 	loadProvider(cfg.Providers)
+	closeRemovedWireGuardDevices(cfg.Proxies, cfg.Providers)
 	updateProfile(cfg)
 	loadProvider(cfg.RuleProviders)
 	runtime.GC()
@@ -319,6 +321,20 @@ func updateHosts(tree *trie.DomainTrie[resolver.HostValue]) {
 
 func updateProxies(proxies map[string]C.Proxy, providers map[string]P.ProxyProvider) {
 	tunnel.UpdateProxies(proxies, providers)
+}
+
+// closeRemovedWireGuardDevices closes the devices of the WireGuard proxies that the new
+// config no longer has. A replaced proxy closes the old device itself when it starts.
+func closeRemovedWireGuardDevices(proxies map[string]C.Proxy, providers map[string]P.ProxyProvider) {
+	serial := outbound.WireGuardSerial()
+	current := make([]C.Proxy, 0, len(proxies))
+	for _, proxy := range proxies {
+		current = append(current, proxy)
+	}
+	for _, pd := range providers {
+		current = append(current, pd.Proxies()...)
+	}
+	outbound.CloseWireGuardDevicesExcept(serial, current)
 }
 
 func updateRules(rules []C.Rule, subRules map[string][]C.Rule, ruleProviders map[string]P.RuleProvider) {

@@ -4,8 +4,11 @@ import (
 	"context"
 	"errors"
 	"net"
+	"runtime"
 	"testing"
 	"time"
+
+	C "github.com/metacubex/mihomo/constant"
 )
 
 func newTestWireGuard(t *testing.T, name string, port int) *WireGuard {
@@ -105,5 +108,56 @@ func TestWireGuardKeepDeviceOfOtherProxy(t *testing.T) {
 	}
 	if wireGuardDeviceClosed(a) || wireGuardDeviceClosed(b) {
 		t.Fatal("device of another proxy was closed")
+	}
+}
+
+// testProxy stands in for adapter.Proxy, which can't be imported here.
+type testProxy struct {
+	C.Proxy
+	adapter C.ProxyAdapter
+}
+
+func (p testProxy) Adapter() C.ProxyAdapter { return p.adapter }
+
+func TestWireGuardCloseRemovedDevices(t *testing.T) {
+	port := listenTestPeer(t)
+
+	// first config: proxies "kept" and "removed", both in use
+	kept := newTestWireGuard(t, "kept", port)
+	removed := newTestWireGuard(t, "removed", port)
+	for _, w := range []*WireGuard{kept, removed} {
+		if err := initTestWireGuard(t, w); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// second config: only "kept" is parsed again, and its new outbound isn't used yet
+	keptNew := newTestWireGuard(t, "kept", port)
+	serial := WireGuardSerial()
+	// a provider update after ApplyConfig took the serial
+	later := newTestWireGuard(t, "later", port)
+	if err := initTestWireGuard(t, later); err != nil {
+		t.Fatal(err)
+	}
+
+	// the config keeps the wrapper alive, otherwise its finalizer closes keptNew
+	keptNewProxy := testProxy{adapter: NewAutoCloseProxyAdapter(keptNew)}
+	defer runtime.KeepAlive(keptNewProxy)
+	CloseWireGuardDevicesExcept(serial, []C.Proxy{keptNewProxy})
+
+	if !wireGuardDeviceClosed(removed) {
+		t.Fatal("device of the removed proxy is still running")
+	}
+	if !wireGuardDeviceClosed(kept) {
+		t.Fatal("device of the replaced outbound is still running")
+	}
+	if wireGuardDeviceClosed(later) {
+		t.Fatal("device of an outbound created after the serial was closed")
+	}
+	if err := initTestWireGuard(t, keptNew); err != nil {
+		t.Fatal(err)
+	}
+	if wireGuardDeviceClosed(keptNew) {
+		t.Fatal("device of the current outbound was closed")
 	}
 }
