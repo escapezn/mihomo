@@ -110,6 +110,10 @@ func (c *Client) h2RoundTripper(tlsConfig *vmess.TLSConfig) {
 		},
 		Protocols:       protocols,
 		IdleConnTimeout: DefaultSessionTimeout,
+		// One Client is one connection: the pool adds Clients for more.
+		// Without the limit, streams opened before the first HTTP/2 session
+		// is ready each dial their own TLS connection.
+		MaxConnsPerHost: 1,
 	}
 }
 
