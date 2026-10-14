@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"net/netip"
+	"sync"
 	"time"
 
 	"github.com/metacubex/mihomo/common/buf"
@@ -13,7 +14,13 @@ import (
 
 type Reject struct {
 	*Base
-	drop bool
+	drop    bool
+	noDrop  bool
+	limiter *RejectRateLimiter
+}
+
+func (r *Reject) SetLimiter(limiter *RejectRateLimiter) {
+	r.limiter = limiter
 }
 
 type RejectOption struct {
@@ -23,8 +30,8 @@ type RejectOption struct {
 
 // DialContext implements C.ProxyAdapter
 func (r *Reject) DialContext(ctx context.Context, metadata *C.Metadata) (C.Conn, error) {
-	if r.drop {
-		return NewConn(dropConn{}, r), nil
+	if r.drop || (!r.noDrop && r.limiter != nil && r.limiter.ShouldDrop(metadata)) {
+		return NewConn(newDropConn(), r), nil
 	}
 	return NewConn(nopConn{}, r), nil
 }
@@ -34,8 +41,8 @@ func (r *Reject) ListenPacketContext(ctx context.Context, metadata *C.Metadata) 
 	if err := r.ResolveUDP(ctx, metadata); err != nil {
 		return nil, err
 	}
-	if r.drop {
-		return NewPacketConn(&nopPacketConn{}, r), nil
+	if r.drop || (!r.noDrop && r.limiter != nil && r.limiter.ShouldDrop(metadata)) {
+		return NewPacketConn(&dropPacketConn{}, r), nil
 	}
 	return NewPacketConn(&rejectPacketConn{}, r), nil
 }
@@ -77,6 +84,18 @@ func NewRejectDrop() *Reject {
 			Prefer: C.DualStack,
 		}),
 		drop: true,
+	}
+}
+
+func NewRejectNoDrop() *Reject {
+	return &Reject{
+		Base: NewBase(BaseOption{
+			Name:   "REJECT-NO-DROP",
+			Type:   C.RejectNoDrop,
+			UDP:    true,
+			Prefer: C.DualStack,
+		}),
+		noDrop: true,
 	}
 }
 
@@ -144,18 +163,59 @@ func (rpc *rejectPacketConn) IsReject() bool {
 	return rpc != nil
 }
 
-type dropConn struct{}
-
-func (rw dropConn) Read(b []byte) (int, error) { return 0, io.EOF }
-func (rw dropConn) ReadBuffer(buffer *buf.Buffer) error {
-	time.Sleep(C.DefaultDropTime)
-	return io.EOF
+type dropPacketConn struct {
+	nopPacketConn
 }
-func (rw dropConn) Write(b []byte) (int, error)          { return 0, io.EOF }
-func (rw dropConn) WriteBuffer(buffer *buf.Buffer) error { return io.EOF }
-func (rw dropConn) Close() error                         { return nil }
-func (rw dropConn) LocalAddr() net.Addr                  { return nil }
-func (rw dropConn) RemoteAddr() net.Addr                 { return nil }
-func (rw dropConn) SetDeadline(time.Time) error          { return nil }
-func (rw dropConn) SetReadDeadline(time.Time) error      { return nil }
-func (rw dropConn) SetWriteDeadline(time.Time) error     { return nil }
+
+func (dpc *dropPacketConn) IsDrop() bool {
+	return true
+}
+
+type dropConn struct {
+	closeOnce sync.Once
+	closed    chan struct{}
+}
+
+func newDropConn() *dropConn {
+	return &dropConn{
+		closed: make(chan struct{}),
+	}
+}
+
+func (rw *dropConn) Read(b []byte) (int, error) {
+	timer := time.NewTimer(C.DefaultDropTime)
+	defer timer.Stop()
+
+	select {
+	case <-rw.closed:
+		return 0, io.EOF
+	case <-timer.C:
+		return 0, io.EOF
+	}
+}
+
+func (rw *dropConn) ReadBuffer(buffer *buf.Buffer) error {
+	timer := time.NewTimer(C.DefaultDropTime)
+	defer timer.Stop()
+
+	select {
+	case <-rw.closed:
+		return io.EOF
+	case <-timer.C:
+		return io.EOF
+	}
+}
+
+func (rw *dropConn) Write(b []byte) (int, error)          { return 0, io.EOF }
+func (rw *dropConn) WriteBuffer(buffer *buf.Buffer) error { return io.EOF }
+func (rw *dropConn) Close() error {
+	rw.closeOnce.Do(func() {
+		close(rw.closed)
+	})
+	return nil
+}
+func (rw *dropConn) LocalAddr() net.Addr                  { return nil }
+func (rw *dropConn) RemoteAddr() net.Addr                 { return nil }
+func (rw *dropConn) SetDeadline(time.Time) error          { return nil }
+func (rw *dropConn) SetReadDeadline(time.Time) error      { return nil }
+func (rw *dropConn) SetWriteDeadline(time.Time) error     { return nil }
