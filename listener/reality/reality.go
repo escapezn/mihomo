@@ -12,6 +12,7 @@ import (
 
 	N "github.com/metacubex/mihomo/common/net"
 	"github.com/metacubex/mihomo/common/utils"
+	"github.com/metacubex/mihomo/component/dialer"
 	C "github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/listener/inner"
 	"github.com/metacubex/mihomo/log"
@@ -39,6 +40,7 @@ func (c Config) Build(tunnel C.Tunnel) (*Builder, error) {
 	realityConfig := &utls.RealityConfig{}
 	realityConfig.SessionTicketsDisabled = true
 	if utils.IsUnixPath(c.Dest) {
+		c.Dest = C.Path.ResolveSocket(c.Dest)
 		realityConfig.Type = "unix"
 	} else {
 		realityConfig.Type = "tcp"
@@ -83,8 +85,7 @@ func (c Config) Build(tunnel C.Tunnel) (*Builder, error) {
 			if c.Proxy != "" {
 				log.Warnln("REALITY: proxy %q is ignored for Unix socket dest: %s", c.Proxy, c.Dest)
 			}
-			var d net.Dialer
-			return d.DialContext(ctx, "unix", address)
+			return dialer.DialContext(ctx, "unix", address)
 		}
 		return inner.HandleTcp(tunnel, address, c.Proxy)
 	}
