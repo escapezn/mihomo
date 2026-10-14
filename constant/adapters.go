@@ -279,6 +279,31 @@ type UDPPacketInAddr interface {
 	InAddr() net.Addr
 }
 
+// PacketRejecter indicates a packet capable of actively rejecting (e.g. sending ICMP Port Unreachable in TUN mode)
+type PacketRejecter interface {
+	Reject() error
+}
+
+// RejectPacketConn indicates a proxy packet connection that rejects UDP packets
+type RejectPacketConn interface {
+	IsReject() bool
+}
+
+// IsRejectPacketConn unwraps the PacketConn recursively to check if it's a RejectPacketConn
+func IsRejectPacketConn(pc any) bool {
+	for pc != nil {
+		if r, ok := pc.(RejectPacketConn); ok && r.IsReject() {
+			return true
+		}
+		if u, ok := pc.(interface{ Upstream() any }); ok {
+			pc = u.Upstream()
+		} else {
+			break
+		}
+	}
+	return false
+}
+
 // PacketAdapter is a UDP Packet adapter for socks/redir/tun
 type PacketAdapter interface {
 	UDPPacket
@@ -302,6 +327,14 @@ func (s *packetAdapter) Metadata() *Metadata {
 // Key is a SNAT key
 func (s *packetAdapter) Key() string {
 	return s.key
+}
+
+func (s *packetAdapter) Reject() error {
+	defer s.Drop()
+	if rejecter, ok := s.UDPPacket.(PacketRejecter); ok {
+		return rejecter.Reject()
+	}
+	return nil
 }
 
 func NewPacketAdapter(packet UDPPacket, metadata *Metadata) PacketAdapter {
