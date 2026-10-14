@@ -433,6 +433,29 @@ func (l *Listener) startTun() (err error) {
 		return
 	}
 
+	var tunWriter io.Writer
+	if w, ok := tunIf.(io.Writer); ok {
+		tunWriter = w
+	}
+	handler.RejectFunc = func(clientAddr, serverAddr netip.AddrPort, payload []byte) error {
+		if tunWriter == nil {
+			return nil
+		}
+		packetBytes, err := BuildICMPPortUnreachable(clientAddr, serverAddr, payload)
+		if err != nil {
+			return err
+		}
+		if runtime.GOOS == "darwin" {
+			hdr := []byte{0, 0, 0, 2} // AF_INET
+			if clientAddr.Addr().Is6() {
+				hdr = []byte{0, 0, 0, 30} // AF_INET6
+			}
+			packetBytes = append(hdr, packetBytes...)
+		}
+		_, err = tunWriter.Write(packetBytes)
+		return err
+	}
+
 	l.dnsServerIp = dnsServerIp
 	// after tun.New sing-tun has set DNS to TUN interface
 	resolver.AddSystemDnsBlacklist(dnsServerIp...)

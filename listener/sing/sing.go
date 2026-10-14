@@ -55,6 +55,7 @@ type ListenerHandler struct {
 	ListenerConfig
 	handlerId  uuid.UUID
 	muxService *mux.Service
+	RejectFunc func(clientAddr, serverAddr netip.AddrPort, payload []byte) error
 }
 
 func UpstreamMetadata(metadata M.Metadata) M.Metadata {
@@ -221,6 +222,13 @@ func (h *ListenerHandler) NewPacket(ctx context.Context, key netip.AddrPort, buf
 		rAddr:  metadata.Source.UDPAddr(),
 		buff:   buffer,
 	}
+	if h.RejectFunc != nil {
+		clientAddr := metadata.Source.AddrPort()
+		serverAddr := metadata.Destination.AddrPort()
+		cPacket.rejectFunc = func() error {
+			return h.RejectFunc(clientAddr, serverAddr, cPacket.Data())
+		}
+	}
 	if h.Type != C.TUN { // make the handler-related SNAT key for not TUN listener
 		connID := fmt.Sprintf("%s:%s", h.handlerId, key)
 		cPacket.rAddr = N.NewCustomAddr(h.Type.String(), connID, cPacket.rAddr) // for tunnel's handleUDPConn
@@ -268,11 +276,19 @@ func ShouldIgnorePacketError(err error) bool {
 }
 
 type packet struct {
-	writer *network.NetPacketWriter
-	mutex  *sync.Mutex
-	rAddr  net.Addr
-	lAddr  net.Addr
-	buff   *buf.Buffer
+	writer     *network.NetPacketWriter
+	mutex      *sync.Mutex
+	rAddr      net.Addr
+	lAddr      net.Addr
+	buff       *buf.Buffer
+	rejectFunc func() error
+}
+
+func (c *packet) Reject() error {
+	if c.rejectFunc != nil {
+		return c.rejectFunc()
+	}
+	return nil
 }
 
 func (c *packet) Data() []byte {
