@@ -39,6 +39,9 @@ type configSchema struct {
 	RedirPort         *int                     `json:"redir-port"`
 	TProxyPort        *int                     `json:"tproxy-port"`
 	MixedPort         *int                     `json:"mixed-port"`
+	PortSocket        *string                  `json:"port-socket"`
+	SocksSocket       *string                  `json:"socks-socket"`
+	MixedSocket       *string                  `json:"mixed-socket"`
 	Tun               *tunSchema               `json:"tun"`
 	TuicServer        *tuicServerSchema        `json:"tuic-server"`
 	ShadowSocksConfig *string                  `json:"ss-config"`
@@ -339,6 +342,22 @@ func patchConfigs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if general.Port != nil && *general.Port != 0 && general.PortSocket != nil && *general.PortSocket != "" {
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, newError("cannot set both port and port-socket"))
+		return
+	}
+	if general.SocksPort != nil && *general.SocksPort != 0 && general.SocksSocket != nil && *general.SocksSocket != "" {
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, newError("cannot set both socks-port and socks-socket"))
+		return
+	}
+	if general.MixedPort != nil && *general.MixedPort != 0 && general.MixedSocket != nil && *general.MixedSocket != "" {
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, newError("cannot set both mixed-port and mixed-socket"))
+		return
+	}
+
 	if general.AllowLan != nil {
 		listener.SetAllowLan(*general.AllowLan)
 	}
@@ -373,11 +392,27 @@ func patchConfigs(w http.ResponseWriter, r *http.Request) {
 
 	ports := listener.GetPorts()
 
-	listener.ReCreateHTTP(pointerOrDefault(general.Port, ports.Port), tunnel.Tunnel)
-	listener.ReCreateSocks(pointerOrDefault(general.SocksPort, ports.SocksPort), tunnel.Tunnel)
+	if general.PortSocket != nil {
+		listener.ReCreateHTTPSocket(*general.PortSocket, tunnel.Tunnel)
+	} else if general.Port != nil {
+		listener.ReCreateHTTP(*general.Port, tunnel.Tunnel)
+	}
+
+	if general.SocksSocket != nil {
+		listener.ReCreateSocksSocket(*general.SocksSocket, tunnel.Tunnel)
+	} else if general.SocksPort != nil {
+		listener.ReCreateSocks(*general.SocksPort, tunnel.Tunnel)
+	}
+
 	listener.ReCreateRedir(pointerOrDefault(general.RedirPort, ports.RedirPort), tunnel.Tunnel)
 	listener.ReCreateTProxy(pointerOrDefault(general.TProxyPort, ports.TProxyPort), tunnel.Tunnel)
-	listener.ReCreateMixed(pointerOrDefault(general.MixedPort, ports.MixedPort), tunnel.Tunnel)
+
+	if general.MixedSocket != nil {
+		listener.ReCreateMixedSocket(*general.MixedSocket, tunnel.Tunnel)
+	} else if general.MixedPort != nil {
+		listener.ReCreateMixed(*general.MixedPort, tunnel.Tunnel)
+	}
+
 	listener.ReCreateTun(pointerOrDefaultTun(general.Tun, listener.LastTunConf), tunnel.Tunnel)
 	listener.ReCreateShadowSocks(pointerOrDefault(general.ShadowSocksConfig, ports.ShadowSocksConfig), tunnel.Tunnel)
 	listener.ReCreateVmess(pointerOrDefault(general.VmessConfig, ports.VmessConfig), tunnel.Tunnel)

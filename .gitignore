@@ -28,5 +28,4 @@ test/config/cache*
 .fleet/
 
 AGENTS.md
-ARCHITECTURE.md
-DECISIONS.md
+/draft
