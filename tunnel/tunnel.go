@@ -482,7 +482,9 @@ func handleUDPConn(packet C.PacketAdapter) {
 			oAddrPort := dialMetadata.AddrPort()
 			writeBackProxy := nat.NewWriteBackProxy(packet)
 
-			go handleUDPToLocal(writeBackProxy, pc, sender, key, oAddrPort)
+			if !C.IsRejectPacketConn(rawPc) {
+				go handleUDPToLocal(writeBackProxy, pc, sender, key, oAddrPort)
+			}
 			return pc, writeBackProxy, nil
 		}
 
@@ -494,6 +496,11 @@ func handleUDPConn(packet C.PacketAdapter) {
 				return
 			}
 			sender.Process(pc, proxy)
+			if C.IsRejectPacketConn(pc) {
+				_ = pc.Close()
+				natTable.Delete(key)
+				sender.Close()
+			}
 		}()
 	}
 	sender.Send(packet) // nonblocking

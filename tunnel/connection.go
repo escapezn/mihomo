@@ -102,15 +102,40 @@ func (s *packetSender) processPacket(pc C.PacketConn, packet C.PacketAdapter) {
 }
 
 func (s *packetSender) Process(pc C.PacketConn, proxy C.WriteBackProxy) {
+	isReject := C.IsRejectPacketConn(pc)
 	for {
 		select {
 		case <-s.ctx.Done():
 			return // sender closed
 		case packet := <-s.ch:
+			if isReject {
+				if rejecter, ok := packet.(C.PacketRejecter); ok {
+					_ = rejecter.Reject()
+				} else {
+					packet.Drop()
+				}
+				s.rejectAll()
+				return
+			}
 			if proxy != nil {
 				proxy.UpdateWriteBack(packet)
 			}
 			s.processPacket(pc, packet)
+		}
+	}
+}
+
+func (s *packetSender) rejectAll() {
+	for {
+		select {
+		case data := <-s.ch:
+			if rejecter, ok := data.(C.PacketRejecter); ok {
+				_ = rejecter.Reject()
+			} else {
+				data.Drop()
+			}
+		default:
+			return
 		}
 	}
 }
