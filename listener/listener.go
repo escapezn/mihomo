@@ -51,20 +51,17 @@ var (
 	tuicListener        *tuic.Listener
 
 	// lock for recreate function
-	socksMux       sync.Mutex
-	httpMux        sync.Mutex
-	httpSocketMux  sync.Mutex
-	redirMux       sync.Mutex
-	tproxyMux      sync.Mutex
-	mixedMux       sync.Mutex
-	mixedSocketMux sync.Mutex
-	socksSocketMux sync.Mutex
-	tunnelMux      sync.Mutex
-	inboundMux     sync.Mutex
-	tunMux         sync.Mutex
-	ssMux          sync.Mutex
-	vmessMux       sync.Mutex
-	tuicMux        sync.Mutex
+	socksMux   sync.Mutex
+	httpMux    sync.Mutex
+	redirMux   sync.Mutex
+	tproxyMux  sync.Mutex
+	mixedMux   sync.Mutex
+	tunnelMux  sync.Mutex
+	inboundMux sync.Mutex
+	tunMux     sync.Mutex
+	ssMux      sync.Mutex
+	vmessMux   sync.Mutex
+	tuicMux    sync.Mutex
 
 	LastTunConf  LC.Tun
 	LastTuicConf LC.TuicServer
@@ -76,6 +73,9 @@ type Ports struct {
 	RedirPort         int    `json:"redir-port"`
 	TProxyPort        int    `json:"tproxy-port"`
 	MixedPort         int    `json:"mixed-port"`
+	PortSocket        string `json:"port-socket,omitempty"`
+	SocksSocket       string `json:"socks-socket,omitempty"`
+	MixedSocket       string `json:"mixed-socket,omitempty"`
 	ShadowSocksConfig string `json:"ss-config"`
 	VmessConfig       string `json:"vmess-config"`
 }
@@ -135,6 +135,11 @@ func ReCreateHTTP(port int, tunnel C.Tunnel) {
 		return
 	}
 
+	if httpSocketListener != nil {
+		httpSocketListener.Close()
+		httpSocketListener = nil
+	}
+
 	httpListener, err = http.New(addr, tunnel)
 	if err != nil {
 		log.Errorln("Start HTTP server error: %s", err.Error())
@@ -145,8 +150,8 @@ func ReCreateHTTP(port int, tunnel C.Tunnel) {
 }
 
 func ReCreateHTTPSocket(path string, tunnel C.Tunnel) {
-	httpSocketMux.Lock()
-	defer httpSocketMux.Unlock()
+	httpMux.Lock()
+	defer httpMux.Unlock()
 
 	var err error
 	defer func() {
@@ -154,6 +159,8 @@ func ReCreateHTTPSocket(path string, tunnel C.Tunnel) {
 			log.Errorln("Start HTTP socket server error: %s", err.Error())
 		}
 	}()
+
+	path = C.Path.ResolveSocket(path)
 
 	if httpSocketListener != nil {
 		if httpSocketListener.RawAddress() == path {
@@ -165,6 +172,11 @@ func ReCreateHTTPSocket(path string, tunnel C.Tunnel) {
 
 	if path == "" {
 		return
+	}
+
+	if httpListener != nil {
+		httpListener.Close()
+		httpListener = nil
 	}
 
 	httpSocketListener, err = http.NewWithNetwork("unix", path, tunnel)
@@ -217,6 +229,11 @@ func ReCreateSocks(port int, tunnel C.Tunnel) {
 		return
 	}
 
+	if socksSocketListener != nil {
+		socksSocketListener.Close()
+		socksSocketListener = nil
+	}
+
 	tcpListener, err := socks.New(addr, tunnel)
 	if err != nil {
 		return
@@ -235,8 +252,8 @@ func ReCreateSocks(port int, tunnel C.Tunnel) {
 }
 
 func ReCreateSocksSocket(path string, tunnel C.Tunnel) {
-	socksSocketMux.Lock()
-	defer socksSocketMux.Unlock()
+	socksMux.Lock()
+	defer socksMux.Unlock()
 
 	var err error
 	defer func() {
@@ -244,6 +261,8 @@ func ReCreateSocksSocket(path string, tunnel C.Tunnel) {
 			log.Errorln("Start SOCKS socket server error: %s", err.Error())
 		}
 	}()
+
+	path = C.Path.ResolveSocket(path)
 
 	if socksSocketListener != nil {
 		if socksSocketListener.RawAddress() == path {
@@ -255,6 +274,15 @@ func ReCreateSocksSocket(path string, tunnel C.Tunnel) {
 
 	if path == "" {
 		return
+	}
+
+	if socksListener != nil {
+		socksListener.Close()
+		socksListener = nil
+	}
+	if socksUDPListener != nil {
+		socksUDPListener.Close()
+		socksUDPListener = nil
 	}
 
 	socksSocketListener, err = socks.NewWithNetwork("unix", path, tunnel)
@@ -549,6 +577,11 @@ func ReCreateMixed(port int, tunnel C.Tunnel) {
 		return
 	}
 
+	if mixedSocketListener != nil {
+		mixedSocketListener.Close()
+		mixedSocketListener = nil
+	}
+
 	mixedListener, err = mixed.New(addr, tunnel)
 	if err != nil {
 		return
@@ -564,8 +597,8 @@ func ReCreateMixed(port int, tunnel C.Tunnel) {
 }
 
 func ReCreateMixedSocket(path string, tunnel C.Tunnel) {
-	mixedSocketMux.Lock()
-	defer mixedSocketMux.Unlock()
+	mixedMux.Lock()
+	defer mixedMux.Unlock()
 
 	var err error
 	defer func() {
@@ -573,6 +606,8 @@ func ReCreateMixedSocket(path string, tunnel C.Tunnel) {
 			log.Errorln("Start Mixed(http+socks) socket server error: %s", err.Error())
 		}
 	}()
+
+	path = C.Path.ResolveSocket(path)
 
 	if mixedSocketListener != nil {
 		if mixedSocketListener.RawAddress() == path {
@@ -584,6 +619,15 @@ func ReCreateMixedSocket(path string, tunnel C.Tunnel) {
 
 	if path == "" {
 		return
+	}
+
+	if mixedListener != nil {
+		mixedListener.Close()
+		mixedListener = nil
+	}
+	if mixedUDPLister != nil {
+		mixedUDPLister.Close()
+		mixedUDPLister = nil
 	}
 
 	mixedSocketListener, err = mixed.NewWithNetwork("unix", path, tunnel)
@@ -784,6 +828,18 @@ func GetPorts() *Ports {
 		_, portStr, _ := net.SplitHostPort(mixedListener.Address())
 		port, _ := strconv.Atoi(portStr)
 		ports.MixedPort = port
+	}
+
+	if httpSocketListener != nil {
+		ports.PortSocket = httpSocketListener.RawAddress()
+	}
+
+	if socksSocketListener != nil {
+		ports.SocksSocket = socksSocketListener.RawAddress()
+	}
+
+	if mixedSocketListener != nil {
+		ports.MixedSocket = mixedSocketListener.RawAddress()
 	}
 
 	if shadowSocksListener != nil {

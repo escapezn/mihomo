@@ -84,6 +84,23 @@ func (p *path) Resolve(path string) string {
 	return path
 }
 
+// ResolveSocket resolves a Unix domain socket path:
+// - Leaves Linux abstract sockets (@...) untouched
+// - Expands ~/ or ~\ using the user home directory
+// - Resolves relative paths against HomeDir()
+func (p *path) ResolveSocket(path string) string {
+	if path == "" || strings.HasPrefix(path, "@") {
+		return path
+	}
+	if strings.HasPrefix(path, "~/") || strings.HasPrefix(path, `~\`) {
+		homeDir, err := os.UserHomeDir()
+		if err == nil {
+			return filepath.Join(homeDir, path[2:])
+		}
+	}
+	return p.Resolve(path)
+}
+
 // IsSafePath return true if path is a subpath of homedir (or in the SAFE_PATHS environment variable)
 func (p *path) IsSafePath(path string) bool {
 	if p.allowUnsafePath || features.CMFA {

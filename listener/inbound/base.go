@@ -27,6 +27,7 @@ func NewBase(options *BaseOption) (*Base, error) {
 		options.Listen = "0.0.0.0"
 	}
 	if utils.IsUnixPath(options.Listen) {
+		options.Listen = C.Path.ResolveSocket(options.Listen)
 		return &Base{
 			name:         options.Name(),
 			specialRules: options.SpecialRules,

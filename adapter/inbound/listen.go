@@ -7,6 +7,7 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/metacubex/mihomo/common/atomic"
@@ -67,8 +68,9 @@ func (l ListenConfig) newListenConfig() *tfo.ListenConfig {
 }
 
 func (l ListenConfig) Listen(ctx context.Context, network, address string) (net.Listener, error) {
-	if network == "unix" {
-		_ = syscall.Unlink(address)
+	isAbstractUnix := network == "unix" && strings.HasPrefix(address, "@")
+	if network == "unix" && !isAbstractUnix {
+		_ = os.Remove(address)
 		if dir := filepath.Dir(address); dir != "." {
 			_ = os.MkdirAll(dir, 0o755)
 		}
@@ -81,7 +83,7 @@ func (l ListenConfig) Listen(ctx context.Context, network, address string) (net.
 	if err != nil {
 		return nil, err
 	}
-	if network == "unix" {
+	if network == "unix" && !isAbstractUnix {
 		_ = os.Chmod(address, 0o666)
 	}
 	return ln, nil
