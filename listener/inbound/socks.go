@@ -97,17 +97,21 @@ func (s *Socks) Listen(tunnel C.Tunnel) error {
 			EchKey:         s.config.EchKey,
 			RealityConfig:  s.config.RealityConfig.Build(),
 		}
-		stl, err := socks.NewWithConfig("tcp", config, lc, tunnel, s.Additions()...)
+		stl, err := socks.NewWithConfig(s.Network(), config, lc, tunnel, s.Additions()...)
 		if err != nil {
 			return err
 		}
 		s.stl = append(s.stl, stl)
 		if s.udp {
-			sul, err := socks.NewUDPWithConfig(config, lc, tunnel, s.Additions()...)
-			if err != nil {
-				return err
+			if s.Network() == "unix" {
+				log.Warnln("SOCKS: UDP listening is not supported on Unix domain socket: %s", addr)
+			} else {
+				sul, err := socks.NewUDPWithConfig(config, lc, tunnel, s.Additions()...)
+				if err != nil {
+					return err
+				}
+				s.sul = append(s.sul, sul)
 			}
-			s.sul = append(s.sul, sul)
 		}
 	}
 

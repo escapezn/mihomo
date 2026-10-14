@@ -77,17 +77,21 @@ func (m *Mixed) Listen(tunnel C.Tunnel) error {
 			EchKey:         m.config.EchKey,
 			RealityConfig:  m.config.RealityConfig.Build(),
 		}
-		l, err := mixed.NewWithConfig("tcp", config, lc, tunnel, m.Additions()...)
+		l, err := mixed.NewWithConfig(m.Network(), config, lc, tunnel, m.Additions()...)
 		if err != nil {
 			return err
 		}
 		m.l = append(m.l, l)
 		if m.udp {
-			lUDP, err := socks.NewUDPWithConfig(config, lc, tunnel, m.Additions()...)
-			if err != nil {
-				return err
+			if m.Network() == "unix" {
+				log.Warnln("Mixed(http+socks): UDP listening is not supported on Unix domain socket: %s", addr)
+			} else {
+				lUDP, err := socks.NewUDPWithConfig(config, lc, tunnel, m.Additions()...)
+				if err != nil {
+					return err
+				}
+				m.lUDP = append(m.lUDP, lUDP)
 			}
-			m.lUDP = append(m.lUDP, lUDP)
 		}
 	}
 	log.Infoln("Mixed(http+socks)[%s] proxy listening at: %s", m.Name(), m.Address())

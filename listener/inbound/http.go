@@ -62,7 +62,7 @@ func (h *HTTP) Listen(tunnel C.Tunnel) error {
 	lc := h.ListenConfig()
 	for _, addr := range strings.Split(h.RawAddress(), ",") {
 		l, err := http.NewWithConfig(
-			"tcp",
+			h.Network(),
 			LC.AuthServer{
 				Enable:         true,
 				Listen:         addr,
