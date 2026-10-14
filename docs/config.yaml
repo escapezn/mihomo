@@ -151,6 +151,14 @@ profile: # 存储 select 选择记录
   # 持久化 fake-ip
   store-fake-ip: true
 
+# 全局 REJECT 行为微调 (自适应防请求风暴)
+# 当特定客户端在短时间内频繁触发 REJECT 导致请求风暴时，自动临时将该客户端对该目标的策略
+# 升级为 REJECT-DROP（静默丢弃），停止回发 ICMP 差错报文与挂起 TCP 连接，保护 CPU 性能与日志。
+# reject:
+#   max-triggers: 50 # 统计周期内触发 REJECT 的阈值上限，设为 0 表示全局禁用自动 drop 降级，默认 50
+#   interval: 30     # 频次统计滑动窗口长度（秒），默认 30
+#   duration: 30     # 触发阈值后临时覆盖为 REJECT-DROP 的持续时间（秒），默认 30
+
 # Tun 配置
 tun:
   enable: false
@@ -2012,6 +2020,10 @@ rule-providers:
       - 'books.itunes.apple.com'
 
 rules:
+  # 内置特殊出站策略支持：DIRECT, REJECT, REJECT-DROP, REJECT-NO-DROP
+  # - REJECT: 默认拒绝（TCP 发送 RST，UDP 发送 ICMP Unreachable；高频请求时自动平滑降级为 REJECT-DROP）
+  # - REJECT-DROP: 显式静默丢弃（TCP 挂起直至超时断开，UDP 静默丢弃不回送 ICMP 差错）
+  # - REJECT-NO-DROP: 严格拒绝（TCP 发送 RST，UDP 发送 ICMP Unreachable，永不降级为静默丢弃）
   - RULE-SET,rule1,REJECT
   - IP-ASN,1,PROXY
   - DOMAIN-REGEX,^abc,DIRECT
