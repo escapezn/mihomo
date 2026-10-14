@@ -79,8 +79,6 @@ type Inbound struct {
 	MixedPort         int            `json:"mixed-port"`
 	PortSocket        string         `json:"port-socket"`
 	SocksSocket       string         `json:"socks-socket"`
-	RedirSocket       string         `json:"redir-socket"`
-	TProxySocket      string         `json:"tproxy-socket"`
 	MixedSocket       string         `json:"mixed-socket"`
 	Tun               LC.Tun         `json:"tun"`
 	TuicServer        LC.TuicServer  `json:"tuic-server"`
@@ -432,8 +430,6 @@ type RawConfig struct {
 	MixedPort                     int                     `yaml:"mixed-port" json:"mixed-port"`
 	PortSocket                    string                  `yaml:"port-socket" json:"port-socket"`
 	SocksSocket                   string                  `yaml:"socks-socket" json:"socks-socket"`
-	RedirSocket                   string                  `yaml:"redir-socket" json:"redir-socket"`
-	TProxySocket                  string                  `yaml:"tproxy-socket" json:"tproxy-socket"`
 	MixedSocket                   string                  `yaml:"mixed-socket" json:"mixed-socket"`
 	ShadowSocksConfig             string                  `yaml:"ss-config" json:"ss-config"`
 	VmessConfig                   string                  `yaml:"vmess-config" json:"vmess-config"`
@@ -825,15 +821,13 @@ func parseGeneral(cfg *RawConfig) (*General, error) {
 	if err := validateSocketPort(cfg.SocksPort, cfg.SocksSocket, "socks-port", "socks-socket"); err != nil {
 		return nil, err
 	}
-	if err := validateSocketPort(cfg.RedirPort, cfg.RedirSocket, "redir-port", "redir-socket"); err != nil {
-		return nil, err
-	}
-	if err := validateSocketPort(cfg.TProxyPort, cfg.TProxySocket, "tproxy-port", "tproxy-socket"); err != nil {
-		return nil, err
-	}
 	if err := validateSocketPort(cfg.MixedPort, cfg.MixedSocket, "mixed-port", "mixed-socket"); err != nil {
 		return nil, err
 	}
+
+	portSocket := C.Path.ResolveSocket(cfg.PortSocket)
+	socksSocket := C.Path.ResolveSocket(cfg.SocksSocket)
+	mixedSocket := C.Path.ResolveSocket(cfg.MixedSocket)
 
 	return &General{
 		Inbound: Inbound{
@@ -842,11 +836,9 @@ func parseGeneral(cfg *RawConfig) (*General, error) {
 			RedirPort:         cfg.RedirPort,
 			TProxyPort:        cfg.TProxyPort,
 			MixedPort:         cfg.MixedPort,
-			PortSocket:        cfg.PortSocket,
-			SocksSocket:       cfg.SocksSocket,
-			RedirSocket:       cfg.RedirSocket,
-			TProxySocket:      cfg.TProxySocket,
-			MixedSocket:       cfg.MixedSocket,
+			PortSocket:        portSocket,
+			SocksSocket:       socksSocket,
+			MixedSocket:       mixedSocket,
 			ShadowSocksConfig: cfg.ShadowSocksConfig,
 			VmessConfig:       cfg.VmessConfig,
 			AllowLan:          cfg.AllowLan,
