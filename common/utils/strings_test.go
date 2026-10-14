@@ -29,6 +29,46 @@ func TestIsUnixPath(t *testing.T) {
 			want: true,
 		},
 		{
+			name: "abstract socket full",
+			s:    "@/tmp/mihomo.sock",
+			want: true,
+		},
+		{
+			name: "abstract socket name",
+			s:    "@mihomo.sock",
+			want: true,
+		},
+		{
+			name: "windows absolute backslash",
+			s:    `C:\Users\test\mihomo.sock`,
+			want: true,
+		},
+		{
+			name: "windows absolute slash",
+			s:    "C:/Users/test/mihomo.sock",
+			want: true,
+		},
+		{
+			name: "windows relative backslash",
+			s:    `.\mihomo.sock`,
+			want: true,
+		},
+		{
+			name: "windows relative parent backslash",
+			s:    `..\mihomo.sock`,
+			want: true,
+		},
+		{
+			name: "windows root relative",
+			s:    `\mihomo.sock`,
+			want: true,
+		},
+		{
+			name: "tilde backslash",
+			s:    `~\mihomo.sock`,
+			want: true,
+		},
+		{
 			name: "host port",
 			s:    "127.0.0.1:7890",
 			want: false,
@@ -46,11 +86,6 @@ func TestIsUnixPath(t *testing.T) {
 		{
 			name: "empty string",
 			s:    "",
-			want: false,
-		},
-		{
-			name: "windows absolute path",
-			s:    "C:\\Users\\test\\mihomo.sock",
 			want: false,
 		},
 	}
