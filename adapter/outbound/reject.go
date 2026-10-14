@@ -34,7 +34,10 @@ func (r *Reject) ListenPacketContext(ctx context.Context, metadata *C.Metadata) 
 	if err := r.ResolveUDP(ctx, metadata); err != nil {
 		return nil, err
 	}
-	return NewPacketConn(&nopPacketConn{}, r), nil
+	if r.drop {
+		return NewPacketConn(&nopPacketConn{}, r), nil
+	}
+	return NewPacketConn(&rejectPacketConn{}, r), nil
 }
 
 func (r *Reject) ResolveUDP(ctx context.Context, metadata *C.Metadata) error {
@@ -132,6 +135,14 @@ func (npc nopPacketConn) LocalAddr() net.Addr              { return udpAddrIPv4U
 func (npc nopPacketConn) SetDeadline(time.Time) error      { return nil }
 func (npc nopPacketConn) SetReadDeadline(time.Time) error  { return nil }
 func (npc nopPacketConn) SetWriteDeadline(time.Time) error { return nil }
+
+type rejectPacketConn struct {
+	nopPacketConn
+}
+
+func (rpc *rejectPacketConn) IsReject() bool {
+	return rpc != nil
+}
 
 type dropConn struct{}
 
