@@ -418,6 +418,12 @@ type RawTLS struct {
 	CustomTrustCert []string `yaml:"custom-certifactes" json:"custom-certifactes"`
 }
 
+type RawReject struct {
+	MaxTriggers int `yaml:"max-triggers" json:"max-triggers"`
+	Interval    int `yaml:"interval" json:"interval"`
+	Duration    int `yaml:"duration" json:"duration"`
+}
+
 type RawConfig struct {
 	Port                          int                     `yaml:"port" json:"port"`
 	SocksPort                     int                     `yaml:"socks-port" json:"socks-port"`
@@ -490,6 +496,7 @@ type RawConfig struct {
 	CoreUpdateUrl RawCoreUpdateUrl          `yaml:"core-update-url" json:"core-update-url"`
 	Sniffer       RawSniffer                `yaml:"sniffer" json:"sniffer"`
 	TLS           RawTLS                    `yaml:"tls" json:"tls"`
+	Reject        RawReject                 `yaml:"reject" json:"reject"`
 
 	ClashForAndroid RawClashForAndroid `yaml:"clash-for-android" json:"clash-for-android"`
 }
@@ -630,6 +637,11 @@ func DefaultRawConfig() *RawConfig {
 			AllowOrigins:        []string{"*"},
 			AllowPrivateNetwork: true,
 		},
+		Reject: RawReject{
+			MaxTriggers: 50,
+			Interval:    30,
+			Duration:    30,
+		},
 	}
 }
 
@@ -709,6 +721,22 @@ func ParseRawConfig(rawCfg *RawConfig) (*Config, error) {
 	}
 	config.Proxies = proxies
 	config.Providers = providers
+
+	maxTriggers := rawCfg.Reject.MaxTriggers
+	interval := time.Duration(rawCfg.Reject.Interval) * time.Second
+	if interval <= 0 {
+		interval = 30 * time.Second
+	}
+	duration := time.Duration(rawCfg.Reject.Duration) * time.Second
+	if duration <= 0 {
+		duration = 30 * time.Second
+	}
+	limiter := outbound.NewRejectRateLimiter(maxTriggers, interval, duration)
+	if rejectProxy, ok := proxies["REJECT"].(*adapter.Proxy); ok {
+		if r, ok := rejectProxy.ProxyAdapter.(*outbound.Reject); ok {
+			r.SetLimiter(limiter)
+		}
+	}
 
 	listeners, err := parseListeners(rawCfg)
 	if err != nil {
@@ -947,10 +975,11 @@ func parseProxies(cfg *RawConfig) (proxies map[string]C.Proxy, providersMap map[
 	proxies["DIRECT"] = adapter.NewProxy(outbound.NewDirect())
 	proxies["REJECT"] = adapter.NewProxy(outbound.NewReject())
 	proxies["REJECT-DROP"] = adapter.NewProxy(outbound.NewRejectDrop())
+	proxies["REJECT-NO-DROP"] = adapter.NewProxy(outbound.NewRejectNoDrop())
 	proxies["COMPATIBLE"] = adapter.NewProxy(outbound.NewCompatible())
 	proxies["PASS"] = adapter.NewProxy(outbound.NewPass())
 	proxies["PASS-RULE"] = adapter.NewProxy(outbound.NewPassRule())
-	proxyList = append(proxyList, "DIRECT", "REJECT")
+	proxyList = append(proxyList, "DIRECT", "REJECT", "REJECT-NO-DROP")
 
 	// parse proxy
 	for idx, mapping := range proxiesConfig {

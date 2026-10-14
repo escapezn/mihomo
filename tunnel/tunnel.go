@@ -482,7 +482,7 @@ func handleUDPConn(packet C.PacketAdapter) {
 			oAddrPort := dialMetadata.AddrPort()
 			writeBackProxy := nat.NewWriteBackProxy(packet)
 
-			if !C.IsRejectPacketConn(rawPc) {
+			if !C.IsRejectPacketConn(rawPc) && !C.IsDropPacketConn(rawPc) {
 				go handleUDPToLocal(writeBackProxy, pc, sender, key, oAddrPort)
 			}
 			return pc, writeBackProxy, nil
@@ -496,7 +496,7 @@ func handleUDPConn(packet C.PacketAdapter) {
 				return
 			}
 			sender.Process(pc, proxy)
-			if C.IsRejectPacketConn(pc) {
+			if C.IsRejectPacketConn(pc) || C.IsDropPacketConn(pc) {
 				_ = pc.Close()
 				natTable.Delete(key)
 				sender.Close()
@@ -591,7 +591,7 @@ func handleTCPConn(connCtx C.ConnContext) {
 				if err != nil {
 					_ = remoteConn.Close()
 					for _, chain := range remoteConn.Chains() {
-						if chain == "REJECT" {
+						if chain == "REJECT" || chain == "REJECT-DROP" || chain == "REJECT-NO-DROP" {
 							err = nil
 							return
 						}

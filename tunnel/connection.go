@@ -103,10 +103,21 @@ func (s *packetSender) processPacket(pc C.PacketConn, packet C.PacketAdapter) {
 
 func (s *packetSender) Process(pc C.PacketConn, proxy C.WriteBackProxy) {
 	isReject := C.IsRejectPacketConn(pc)
+	isDrop := C.IsDropPacketConn(pc)
+	var dropTimer *time.Timer
+	var dropCh <-chan time.Time
+	if isDrop {
+		dropTimer = time.NewTimer(30 * time.Second)
+		defer dropTimer.Stop()
+		dropCh = dropTimer.C
+	}
+
 	for {
 		select {
 		case <-s.ctx.Done():
 			return // sender closed
+		case <-dropCh:
+			return // drop session timed out
 		case packet := <-s.ch:
 			if isReject {
 				if rejecter, ok := packet.(C.PacketRejecter); ok {
@@ -116,6 +127,10 @@ func (s *packetSender) Process(pc C.PacketConn, proxy C.WriteBackProxy) {
 				}
 				s.rejectAll()
 				return
+			}
+			if isDrop {
+				packet.Drop()
+				continue
 			}
 			if proxy != nil {
 				proxy.UpdateWriteBack(packet)
