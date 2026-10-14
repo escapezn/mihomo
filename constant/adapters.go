@@ -55,6 +55,8 @@ const (
 	ZeroTier
 	EasyTier
 	GostRelay
+
+	RejectNoDrop
 )
 
 const (
@@ -242,6 +244,8 @@ func (at AdapterType) String() string {
 		return "EasyTier"
 	case GostRelay:
 		return "GostRelay"
+	case RejectNoDrop:
+		return "RejectNoDrop"
 	case Relay:
 		return "Relay"
 	case Selector:
@@ -293,6 +297,26 @@ type RejectPacketConn interface {
 func IsRejectPacketConn(pc any) bool {
 	for pc != nil {
 		if r, ok := pc.(RejectPacketConn); ok && r.IsReject() {
+			return true
+		}
+		if u, ok := pc.(interface{ Upstream() any }); ok {
+			pc = u.Upstream()
+		} else {
+			break
+		}
+	}
+	return false
+}
+
+// DropPacketConn indicates a proxy packet connection that silently drops UDP packets
+type DropPacketConn interface {
+	IsDrop() bool
+}
+
+// IsDropPacketConn unwraps the PacketConn recursively to check if it's a DropPacketConn
+func IsDropPacketConn(pc any) bool {
+	for pc != nil {
+		if d, ok := pc.(DropPacketConn); ok && d.IsDrop() {
 			return true
 		}
 		if u, ok := pc.(interface{ Upstream() any }); ok {
