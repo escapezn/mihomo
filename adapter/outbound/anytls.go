@@ -3,6 +3,8 @@ package outbound
 import (
 	"context"
 	"errors"
+	"net"
+	"strconv"
 	"strings"
 	"time"
 
@@ -90,7 +92,7 @@ func (t *AnyTLS) Close() error {
 }
 
 func NewAnyTLS(option AnyTLSOption) (*AnyTLS, error) {
-	addr := resolveAddr(option.Server, option.Port)
+	addr := net.JoinHostPort(option.Server, strconv.Itoa(option.Port))
 	outbound := &AnyTLS{
 		Base: NewBase(BaseOption{
 			Name:         option.Name,

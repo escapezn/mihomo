@@ -197,7 +197,7 @@ func NewSudoku(option SudokuOption) (*Sudoku, error) {
 	}
 
 	baseConf := sudoku.ProtocolConfig{
-		ServerAddress:           resolveAddr(option.Server, option.Port),
+		ServerAddress:           net.JoinHostPort(option.Server, strconv.Itoa(option.Port)),
 		Key:                     option.Key,
 		AEADMethod:              defaultConf.AEADMethod,
 		PaddingMin:              paddingMin,
@@ -317,7 +317,7 @@ func (s *Sudoku) dialAndHandshake(ctx context.Context, cfg *sudoku.ProtocolConfi
 		}
 	}
 	if c == nil && err == nil {
-		c, err = s.dialer.DialContext(ctx, s.Network(), s.addr)
+		c, err = s.dialer.DialContext(ctx, "tcp", s.addr)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("%s connect error: %w", s.addr, err)

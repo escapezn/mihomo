@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"strconv"
 	"time"
 
 	"github.com/metacubex/mihomo/common/utils"
@@ -144,7 +145,7 @@ func (c *HysteriaOption) Speed() (uint64, uint64, error) {
 
 func NewHysteria(option HysteriaOption) (*Hysteria, error) {
 	clientTransport := &transport.ClientTransport{}
-	addr := resolveAddr(option.Server, option.Port)
+	addr := net.JoinHostPort(option.Server, strconv.Itoa(option.Port))
 	ports := option.Ports
 
 	serverName := option.Server

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/netip"
+	"strconv"
 
 	N "github.com/metacubex/mihomo/common/net"
 	"github.com/metacubex/mihomo/component/ca"
@@ -68,7 +69,7 @@ func (ss *Socks5) StreamConnContext(ctx context.Context, c net.Conn, metadata *C
 
 // DialContext implements C.ProxyAdapter
 func (ss *Socks5) DialContext(ctx context.Context, metadata *C.Metadata) (_ C.Conn, err error) {
-	c, err := ss.dialer.DialContext(ctx, ss.Network(), ss.addr)
+	c, err := ss.dialer.DialContext(ctx, "tcp", ss.addr)
 	if err != nil {
 		return nil, fmt.Errorf("%s connect error: %w", ss.addr, err)
 	}
@@ -90,7 +91,7 @@ func (ss *Socks5) ListenPacketContext(ctx context.Context, metadata *C.Metadata)
 	if err = ss.ResolveUDP(ctx, metadata); err != nil {
 		return nil, err
 	}
-	c, err := ss.dialer.DialContext(ctx, ss.Network(), ss.addr)
+	c, err := ss.dialer.DialContext(ctx, "tcp", ss.addr)
 	if err != nil {
 		err = fmt.Errorf("%s connect error: %w", ss.addr, err)
 		return
@@ -191,7 +192,7 @@ func NewSocks5(option Socks5Option) (*Socks5, error) {
 	outbound := &Socks5{
 		Base: NewBase(BaseOption{
 			Name:         option.Name,
-			Addr:         resolveAddr(option.Server, option.Port),
+			Addr:         net.JoinHostPort(option.Server, strconv.Itoa(option.Port)),
 			Type:         C.Socks5,
 			ProviderName: option.ProviderName,
 			UDP:          option.UDP,

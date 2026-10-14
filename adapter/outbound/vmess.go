@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -398,7 +399,7 @@ func (v *Vmess) dialContext(ctx context.Context) (c net.Conn, err error) {
 		return c, nil
 	default:
 	}
-	return v.dialer.DialContext(ctx, v.Network(), v.addr)
+	return v.dialer.DialContext(ctx, "tcp", v.addr)
 }
 
 // DialContext implements C.ProxyAdapter
@@ -499,7 +500,7 @@ func NewVmess(option VmessOption) (*Vmess, error) {
 	v := &Vmess{
 		Base: NewBase(BaseOption{
 			Name:         option.Name,
-			Addr:         resolveAddr(option.Server, option.Port),
+			Addr:         net.JoinHostPort(option.Server, strconv.Itoa(option.Port)),
 			Type:         C.Vmess,
 			ProviderName: option.ProviderName,
 			UDP:          option.UDP,
@@ -582,7 +583,7 @@ func NewVmess(option VmessOption) (*Vmess, error) {
 			cfg.URL = "https://" + v.addr
 		}
 		v.mekyaClient, err = mekya.NewClient(context.Background(), func(ctx context.Context) (net.Conn, error) {
-			rawConn, err := v.dialer.DialContext(ctx, v.Network(), v.addr)
+			rawConn, err := v.dialer.DialContext(ctx, "tcp", v.addr)
 			if err != nil {
 				return nil, err
 			}
@@ -598,7 +599,7 @@ func NewVmess(option VmessOption) (*Vmess, error) {
 		}
 	case "grpc":
 		dialFn := func(ctx context.Context, network, addr string) (net.Conn, error) {
-			c, err := v.dialer.DialContext(ctx, v.Network(), v.addr)
+			c, err := v.dialer.DialContext(ctx, "tcp", v.addr)
 			if err != nil {
 				return nil, fmt.Errorf("%s connect error: %s", v.addr, err.Error())
 			}

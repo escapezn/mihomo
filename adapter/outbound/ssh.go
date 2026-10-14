@@ -60,7 +60,7 @@ func (s *Ssh) connect(ctx context.Context, addr string) (client *ssh.Client, err
 	if s.client != nil {
 		return s.client, nil
 	}
-	c, err := s.dialer.DialContext(ctx, s.Network(), addr)
+	c, err := s.dialer.DialContext(ctx, "tcp", addr)
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +113,7 @@ func (s *Ssh) Close() error {
 }
 
 func NewSsh(option SshOption) (*Ssh, error) {
-	addr := resolveAddr(option.Server, option.Port)
+	addr := net.JoinHostPort(option.Server, strconv.Itoa(option.Port))
 
 	config := ssh.ClientConfig{
 		User:              option.UserName,

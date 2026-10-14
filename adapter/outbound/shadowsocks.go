@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strconv"
 
 	N "github.com/metacubex/mihomo/common/net"
 	"github.com/metacubex/mihomo/common/structure"
@@ -214,7 +215,7 @@ func (ss *ShadowSocks) dialContext(ctx context.Context) (c net.Conn, err error) 
 	if ss.kcptunClient != nil {
 		return ss.kcptunClient.OpenStream(ctx, ss.listenPacketContext)
 	}
-	return ss.dialer.DialContext(ctx, ss.Network(), ss.addr)
+	return ss.dialer.DialContext(ctx, "tcp", ss.addr)
 }
 
 // DialContext implements C.ProxyAdapter
@@ -298,7 +299,7 @@ func (ss *ShadowSocks) Close() error {
 }
 
 func NewShadowSocks(option ShadowSocksOption) (*ShadowSocks, error) {
-	addr := resolveAddr(option.Server, option.Port)
+	addr := net.JoinHostPort(option.Server, strconv.Itoa(option.Port))
 	method, err := shadowsocks.CreateMethod(option.Cipher, shadowsocks.MethodOptions{
 		Password: option.Password,
 		TimeFunc: ntp.Now,

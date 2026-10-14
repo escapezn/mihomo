@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"strconv"
 	"sync"
 
 	N "github.com/metacubex/mihomo/common/net"
@@ -149,10 +150,10 @@ func NewMieru(option MieruOption) (*Mieru, error) {
 
 	var addr string
 	if option.Port != 0 {
-		addr = resolveAddr(option.Server, option.Port)
+		addr = net.JoinHostPort(option.Server, strconv.Itoa(option.Port))
 	} else {
 		beginPort, _, _ := beginAndEndPortFromPortRange(option.PortRange)
-		addr = resolveAddr(option.Server, beginPort)
+		addr = net.JoinHostPort(option.Server, strconv.Itoa(beginPort))
 	}
 	outbound := &Mieru{
 		Base: NewBase(BaseOption{

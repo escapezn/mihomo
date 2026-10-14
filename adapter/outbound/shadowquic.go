@@ -2,6 +2,8 @@ package outbound
 
 import (
 	"context"
+	"net"
+	"strconv"
 	"time"
 
 	"github.com/metacubex/mihomo/common/utils"
@@ -82,7 +84,7 @@ func (s *ShadowQuic) ProxyInfo() C.ProxyInfo {
 }
 
 func NewShadowQuic(option ShadowQuicOption) (*ShadowQuic, error) {
-	addr := resolveAddr(option.Server, option.Port)
+	addr := net.JoinHostPort(option.Server, strconv.Itoa(option.Port))
 	serverName := option.SNI
 	if serverName == "" {
 		serverName = option.Server

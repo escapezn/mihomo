@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strconv"
 
 	C "github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/transport/gost"
@@ -73,7 +74,7 @@ func NewGostRelay(option GostRelayOption) (*GostRelay, error) {
 		return nil, fmt.Errorf("gost-relay %s requires a valid server and port", option.Name)
 	}
 
-	addr := resolveAddr(option.Server, option.Port)
+	addr := net.JoinHostPort(option.Server, strconv.Itoa(option.Port))
 	relay := &GostRelay{
 		Base: NewBase(BaseOption{
 			Name:         option.Name,

@@ -7,12 +7,6 @@ listeners:
   - type: vless
     listen: /var/run/vless.sock
 
-# Outbound
-proxies:
-  - name: local-ss
-    type: ss
-    server: /var/run/ss-server.sock
-
 
 # port: 7890 # HTTP(S) 代理服务器端口
 # socks-port: 7891 # SOCKS5 代理端口

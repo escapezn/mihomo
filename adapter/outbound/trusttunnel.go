@@ -2,6 +2,8 @@ package outbound
 
 import (
 	"context"
+	"net"
+	"strconv"
 
 	N "github.com/metacubex/mihomo/common/net"
 	C "github.com/metacubex/mihomo/constant"
@@ -83,7 +85,7 @@ func (t *TrustTunnel) Close() error {
 }
 
 func NewTrustTunnel(option TrustTunnelOption) (*TrustTunnel, error) {
-	addr := resolveAddr(option.Server, option.Port)
+	addr := net.JoinHostPort(option.Server, strconv.Itoa(option.Port))
 	outbound := &TrustTunnel{
 		Base: NewBase(BaseOption{
 			Name:         option.Name,
