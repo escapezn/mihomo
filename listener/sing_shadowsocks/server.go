@@ -141,64 +141,68 @@ func New(network string, config LC.ShadowsocksServer, lc C.InboundListenConfig, 
 		addr := addr
 
 		if config.Udp {
-			//UDP
-			ul, err := lc.ListenPacket(context.Background(), "udp", addr)
-			if err != nil {
-				return nil, err
-			}
-
-			if err := sockopt.UDPReuseaddr(ul); err != nil {
-				log.Warnln("Failed to Reuse UDP Address: %s", err)
-			}
-
-			sl.udpListeners = append(sl.udpListeners, ul)
-
-			if kcptunServer != nil {
-				go kcptunServer.Serve(ul, func(c net.Conn) {
-					sl.HandleConn(c, tunnel)
-				})
-
-				continue // skip tcp listener
-			}
-
-			go func() {
-				conn := bufio.NewPacketConn(ul)
-				rwOptions := singNetwork.NewReadWaitOptions(conn, sl.service)
-				readWaiter, isReadWaiter := bufio.CreatePacketReadWaiter(conn)
-				if isReadWaiter {
-					readWaiter.InitializeReadWaiter(rwOptions)
+			if network == "unix" {
+				log.Warnln("Shadowsocks: UDP listening is not supported on Unix domain socket: %s", addr)
+			} else {
+				//UDP
+				ul, err := lc.ListenPacket(context.Background(), "udp", addr)
+				if err != nil {
+					return nil, err
 				}
-				for {
-					var (
-						buff *buf.Buffer
-						dest M.Socksaddr
-						err  error
-					)
-					buff = nil // clear last loop status, avoid repeat release
-					if isReadWaiter {
-						buff, dest, err = readWaiter.WaitReadPacket()
-					} else {
-						buff = rwOptions.NewPacketBuffer()
-						dest, err = conn.ReadPacket(buff)
-						if buff != nil {
-							rwOptions.PostReturn(buff)
-						}
-					}
-					if err != nil {
-						buff.Release()
-						if sl.closed {
-							break
-						}
-						continue
-					}
-					ctx := context.TODO()
-					ctx = sing.WithInAddr(ctx, ul.LocalAddr())
-					_ = sl.service.NewPacket(ctx, conn, buff, M.Metadata{
-						Protocol: "shadowsocks",
-						Source:   dest,
+
+				if err := sockopt.UDPReuseaddr(ul); err != nil {
+					log.Warnln("Failed to Reuse UDP Address: %s", err)
+				}
+
+				sl.udpListeners = append(sl.udpListeners, ul)
+
+				if kcptunServer != nil {
+					go kcptunServer.Serve(ul, func(c net.Conn) {
+						sl.HandleConn(c, tunnel)
 					})
+
+					continue // skip tcp listener
 				}
-			}()
+
+				go func() {
+					conn := bufio.NewPacketConn(ul)
+					rwOptions := singNetwork.NewReadWaitOptions(conn, sl.service)
+					readWaiter, isReadWaiter := bufio.CreatePacketReadWaiter(conn)
+					if isReadWaiter {
+						readWaiter.InitializeReadWaiter(rwOptions)
+					}
+					for {
+						var (
+							buff *buf.Buffer
+							dest M.Socksaddr
+							err  error
+						)
+						buff = nil // clear last loop status, avoid repeat release
+						if isReadWaiter {
+							buff, dest, err = readWaiter.WaitReadPacket()
+						} else {
+							buff = rwOptions.NewPacketBuffer()
+							dest, err = conn.ReadPacket(buff)
+							if buff != nil {
+								rwOptions.PostReturn(buff)
+							}
+						}
+						if err != nil {
+							buff.Release()
+							if sl.closed {
+								break
+							}
+							continue
+						}
+						ctx := context.TODO()
+						ctx = sing.WithInAddr(ctx, ul.LocalAddr())
+						_ = sl.service.NewPacket(ctx, conn, buff, M.Metadata{
+							Protocol: "shadowsocks",
+							Source:   dest,
+						})
+					}
+				}()
+			}
 		}
 
 		//TCP

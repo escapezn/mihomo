@@ -14,6 +14,7 @@ import (
 	"github.com/metacubex/mihomo/listener/restls"
 	"github.com/metacubex/mihomo/listener/shadowtls"
 	"github.com/metacubex/mihomo/listener/sing"
+	"github.com/metacubex/mihomo/log"
 	"github.com/metacubex/mihomo/transport/shadowsocks/core"
 	obfs "github.com/metacubex/mihomo/transport/simple-obfs"
 	"github.com/metacubex/mihomo/transport/socks5"
@@ -100,12 +101,16 @@ func New(network string, config LC.ShadowsocksServer, lc C.InboundListenConfig, 
 		addr := addr
 
 		if config.Udp {
-			//UDP
-			ul, err := NewUDP(addr, lc, pickCipher, tunnel, additions...)
-			if err != nil {
-				return nil, err
+			if network == "unix" {
+				log.Warnln("Shadowsocks: UDP listening is not supported on Unix domain socket: %s", addr)
+			} else {
+				//UDP
+				ul, err := NewUDP(addr, lc, pickCipher, tunnel, additions...)
+				if err != nil {
+					return nil, err
+				}
+				sl.udpListeners = append(sl.udpListeners, ul)
 			}
-			sl.udpListeners = append(sl.udpListeners, ul)
 		}
 
 		//TCP

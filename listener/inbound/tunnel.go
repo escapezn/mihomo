@@ -67,8 +67,12 @@ func (t *Tunnel) Close() error {
 // Address implements constant.InboundListener
 func (t *Tunnel) Address() string {
 	var addrList []string
+	prefix := "tcp://"
+	if t.Network() == "unix" {
+		prefix = "unix://"
+	}
 	for _, l := range t.ttl {
-		addrList = append(addrList, "tcp://"+l.Address())
+		addrList = append(addrList, prefix+l.Address())
 	}
 	for _, l := range t.tul {
 		addrList = append(addrList, "udp://"+l.Address())
@@ -89,6 +93,10 @@ func (t *Tunnel) Listen(tunnel C.Tunnel) error {
 				}
 				t.ttl = append(t.ttl, ttl)
 			case "udp":
+				if t.Network() == "unix" {
+					log.Warnln("Tunnel[%s]: UDP listening is not supported on Unix domain socket: %s", t.Name(), addr)
+					continue
+				}
 				tul, err := LT.NewUDP(addr, t.config.Target, t.config.SpecialProxy, lc, tunnel, t.Additions()...)
 				if err != nil {
 					return err

@@ -116,20 +116,24 @@ func New(network string, config LC.TrustTunnelServer, lc C.InboundListenConfig, 
 			sl.listeners = append(sl.listeners, tcpListener)
 		}
 		if listenUDP {
-			udpAddr := addr
-			if network == "unix" && config.Port != "" {
-				udpAddr = net.JoinHostPort("127.0.0.1", config.Port)
-			}
-			udpConn, err = lc.ListenPacket(context.Background(), "udp", udpAddr)
-			if err != nil {
-				_ = sl.Close()
-				return nil, err
-			}
+			if network == "unix" && config.Port == "" {
+				log.Warnln("TrustTunnel: UDP listening requires port option on Unix domain socket, skipped for %s", addr)
+			} else {
+				udpAddr := addr
+				if network == "unix" && config.Port != "" {
+					udpAddr = net.JoinHostPort("127.0.0.1", config.Port)
+				}
+				udpConn, err = lc.ListenPacket(context.Background(), "udp", udpAddr)
+				if err != nil {
+					_ = sl.Close()
+					return nil, err
+				}
 
-			if err := sockopt.UDPReuseaddr(udpConn); err != nil {
-				log.Warnln("Failed to Reuse UDP Address: %s", err)
+				if err := sockopt.UDPReuseaddr(udpConn); err != nil {
+					log.Warnln("Failed to Reuse UDP Address: %s", err)
+				}
+				sl.udpListeners = append(sl.udpListeners, udpConn)
 			}
-			sl.udpListeners = append(sl.udpListeners, udpConn)
 		}
 
 		service := trusttunnel.NewService(trusttunnel.ServiceOptions{
