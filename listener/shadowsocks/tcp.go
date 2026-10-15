@@ -145,6 +145,7 @@ func New(network string, config LC.ShadowsocksServer, lc C.InboundListenConfig, 
 }
 
 func (l *Listener) Close() error {
+	l.closed = true
 	var retErr error
 	for _, lis := range l.listeners {
 		err := lis.Close()
