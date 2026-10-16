@@ -127,7 +127,7 @@ func (l *RejectRateLimiter) ShouldDrop(metadata *C.Metadata) bool {
 	})
 
 	return tracker.shouldDrop(time.Now(), maxTriggers, interval, dropDuration, func() {
-		log.Debugln("[Reject] %s triggered rate limit (%d/%s), downgrade to DROP for %s", key, maxTriggers, interval, dropDuration)
+		log.Infoln("[Reject] %s triggered rate limit (%d/%s), downgrade to DROP for %s", key, maxTriggers, interval, dropDuration)
 	})
 }
 
