@@ -146,3 +146,32 @@ func TestDropConnInterruptible(t *testing.T) {
 		t.Fatal("dropConn did not exit promptly on Close")
 	}
 }
+
+func TestDropConnBlackholeWrite(t *testing.T) {
+	conn := newDropConn()
+	require.NotNil(t, conn)
+
+	// Writing data should succeed (blackholed) and not return EOF
+	n, err := conn.Write([]byte("GET / HTTP/1.1\r\n\r\n"))
+	require.NoError(t, err)
+	assert.Equal(t, 18, n)
+
+	buffer := buf.New()
+	_, _ = buffer.Write([]byte("ClientHello"))
+	err = conn.WriteBuffer(buffer)
+	require.NoError(t, err)
+
+	// Close conn
+	err = conn.Close()
+	require.NoError(t, err)
+
+	// After close, writes should return EOF
+	_, err = conn.Write([]byte("after close"))
+	assert.Equal(t, io.EOF, err)
+
+	buffer2 := buf.New()
+	_, _ = buffer2.Write([]byte("after close"))
+	err = conn.WriteBuffer(buffer2)
+	assert.Equal(t, io.EOF, err)
+}
+

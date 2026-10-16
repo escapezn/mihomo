@@ -206,8 +206,26 @@ func (rw *dropConn) ReadBuffer(buffer *buf.Buffer) error {
 	}
 }
 
-func (rw *dropConn) Write(b []byte) (int, error)          { return 0, io.EOF }
-func (rw *dropConn) WriteBuffer(buffer *buf.Buffer) error { return io.EOF }
+func (rw *dropConn) Write(b []byte) (int, error) {
+	select {
+	case <-rw.closed:
+		return 0, io.EOF
+	default:
+		return len(b), nil
+	}
+}
+
+func (rw *dropConn) WriteBuffer(buffer *buf.Buffer) error {
+	if buffer != nil {
+		buffer.Release()
+	}
+	select {
+	case <-rw.closed:
+		return io.EOF
+	default:
+		return nil
+	}
+}
 func (rw *dropConn) Close() error {
 	rw.closeOnce.Do(func() {
 		close(rw.closed)
