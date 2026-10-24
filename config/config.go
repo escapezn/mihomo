@@ -285,6 +285,7 @@ type RawTun struct {
 	InterceptMode       C.TUNInterceptMode `yaml:"intercept-mode" json:"intercept-mode"`
 	Device              string             `yaml:"device" json:"device"`
 	Stack               C.TUNStack         `yaml:"stack" json:"stack"`
+	DNSMode             string             `yaml:"dns-mode" json:"dns-mode"`
 	DNSHijack           []string           `yaml:"dns-hijack" json:"dns-hijack"`
 	AutoRoute           bool               `yaml:"auto-route" json:"auto-route"`
 	AutoDetectInterface bool               `yaml:"auto-detect-interface" json:"auto-detect-interface"`
@@ -1771,6 +1772,7 @@ func parseTun(rawTun RawTun, dns *DNS, general *General) error {
 		InterceptMode:       rawTun.InterceptMode,
 		Device:              rawTun.Device,
 		Stack:               rawTun.Stack,
+		DNSMode:             rawTun.DNSMode,
 		DNSHijack:           rawTun.DNSHijack,
 		AutoRoute:           rawTun.AutoRoute,
 		AutoDetectInterface: rawTun.AutoDetectInterface,
