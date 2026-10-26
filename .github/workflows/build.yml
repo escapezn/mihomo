@@ -44,6 +44,9 @@ jobs:
           - { goos: windows, goarch: amd64, goamd64: v3, output: amd64-v3 }
           - { goos: windows, goarch: arm64, output: arm64 }
 
+          # Android
+          - { goos: android, goarch: arm64, ndk: aarch64-linux-android34, output: arm64-v8 }
+
     steps:
     - uses: actions/checkout@v6
 
@@ -83,6 +86,20 @@ jobs:
         echo "CGO_ENABLED=0" >> $GITHUB_ENV
         echo "BUILDTAG=-extldflags --static" >> $GITHUB_ENV
         echo "GOTOOLCHAIN=local" >> $GITHUB_ENV
+
+    - name: Setup NDK
+      if: ${{ matrix.jobs.goos == 'android' }}
+      uses: nttld/setup-ndk@v1
+      id: setup-ndk
+      with:
+        ndk-version: r29-beta1
+
+    - name: Set NDK path
+      if: ${{ matrix.jobs.goos == 'android' }}
+      run: |
+        echo "CC=${{steps.setup-ndk.outputs.ndk-path}}/toolchains/llvm/prebuilt/linux-x86_64/bin/${{matrix.jobs.ndk}}-clang" >> $GITHUB_ENV
+        echo "CGO_ENABLED=1" >> $GITHUB_ENV
+        echo "BUILDTAG=" >> $GITHUB_ENV
 
     - name: Test
       if: ${{ matrix.jobs.test == 'test' }}
