@@ -148,6 +148,21 @@ func filterDNS(targets []netip.AddrPort) filterExpr {
 	return filterAny(children...)
 }
 
+func filterDHCP() filterExpr {
+	// RFC 2131 (DHCPv4) & RFC 8415 (DHCPv6) standard client-server pairs.
+	pairs := [][2]uint16{
+		{68, 67},   // DHCPv4 Client -> Server (Discover, Request, Renew, Inform)
+		{67, 68},   // DHCPv4 Server -> Client (ICS / Mobile Hotspot)
+		{546, 547}, // DHCPv6 Client -> Server (Solicit, Request, Renew, Inform)
+		{547, 546}, // DHCPv6 Server -> Client (ICS / Mobile Hotspot)
+	}
+	children := make([]filterExpr, 0, len(pairs))
+	for _, pair := range pairs {
+		children = append(children, filterAll(filterEqual(53, uint32(pair[0])), filterEqual(54, uint32(pair[1]))))
+	}
+	return filterAll(filterEqual(9, 1), filterAny(children...))
+}
+
 func (t *Tun) networkFilter() ([]instruction, error) {
 	selected := []filterExpr{filterEqual(58, 0), filterAny(filterEqual(8, 1), filterEqual(9, 1))}
 	// Capture global unicast destinations.
@@ -156,6 +171,7 @@ func (t *Tun) networkFilter() ([]instruction, error) {
 		bypass = append(bypass, netip.MustParsePrefix(prefix))
 	}
 	selected = append(selected, filterNot(filterPrefixes(bypass)))
+	selected = append(selected, filterNot(filterDHCP()))
 	if len(t.includeIf) > 0 {
 		selected = append(selected, filterInterfaces(t.includeIf))
 	}

@@ -280,3 +280,83 @@ func TestKernelFilterRelayScope(t *testing.T) {
 		t.Fatal("oversized filter accepted")
 	}
 }
+
+func TestKernelFilterDHCPPolicy(t *testing.T) {
+	device := &Tun{options: Options{
+		IPv6:         true,
+		RouteAddress: []netip.Prefix{netip.MustParsePrefix("0.0.0.0/0"), netip.MustParsePrefix("::/0")},
+	}}
+	code, err := device.networkFilter()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name     string
+		src      string
+		dst      string
+		protocol byte
+		want     bool
+	}{
+		{
+			name:     "DHCPv4 client unicast renew",
+			src:      "192.168.1.100:68",
+			dst:      "192.168.1.1:67",
+			protocol: 17,
+			want:     false,
+		},
+		{
+			name:     "DHCPv4 subnet directed broadcast",
+			src:      "192.168.1.100:68",
+			dst:      "192.168.1.255:67",
+			protocol: 17,
+			want:     false,
+		},
+		{
+			name:     "DHCPv4 server reply (ICS/AP)",
+			src:      "192.168.137.1:67",
+			dst:      "192.168.137.100:68",
+			protocol: 17,
+			want:     false,
+		},
+		{
+			name:     "DHCPv6 client unicast renew",
+			src:      "[2001:db8::100]:546",
+			dst:      "[2001:db8::1]:547",
+			protocol: 17,
+			want:     false,
+		},
+		{
+			name:     "DHCPv6 server reply (ICS/AP)",
+			src:      "[2001:db8::1]:547",
+			dst:      "[2001:db8::100]:546",
+			protocol: 17,
+			want:     false,
+		},
+		{
+			name:     "TCP traffic to port 67 not bypassed",
+			src:      "192.168.1.100:12345",
+			dst:      "192.168.1.1:67",
+			protocol: 6,
+			want:     true,
+		},
+		{
+			name:     "arbitrary UDP from port 68 not bypassed",
+			src:      "192.168.1.100:68",
+			dst:      "203.0.113.1:443",
+			protocol: 17,
+			want:     true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			src := netip.MustParseAddrPort(tc.src)
+			dst := netip.MustParseAddrPort(tc.dst)
+			info := packetInfo{flow: flow{source: src, destination: dst, protocol: tc.protocol}}
+			addr := address{Flags: flagOutbound}
+			if got := evaluateFilter(t, code, info, addr); got != tc.want {
+				t.Fatalf("flow=%+v: got %v, want %v", info, got, tc.want)
+			}
+		})
+	}
+}
+
