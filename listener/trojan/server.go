@@ -41,7 +41,7 @@ type Listener struct {
 	handler    *sing.ListenerHandler
 }
 
-func New(network string, config LC.TrojanServer, lc C.InboundListenConfig, tunnel C.Tunnel, additions ...inbound.Addition) (sl *Listener, err error) {
+func New(network string, config LC.TrojanServer, lc C.InboundListenConfig, tunnel C.Tunnel, additions ...inbound.Addition) (_ *Listener, err error) {
 	if len(additions) == 0 {
 		additions = []inbound.Addition{
 			inbound.WithInName("DEFAULT-TROJAN"),
@@ -76,7 +76,7 @@ func New(network string, config LC.TrojanServer, lc C.InboundListenConfig, tunne
 			return nil, err
 		}
 	}
-	sl = &Listener{false, config, nil, keys, pickCipher, h}
+	sl := &Listener{false, config, nil, keys, pickCipher, h}
 
 	httpServer := http.Server{
 		IdleTimeout: 30 * time.Second,
@@ -194,6 +194,11 @@ func New(network string, config LC.TrojanServer, lc C.InboundListenConfig, tunne
 		tlsConfig.NextProtos = append([]string{"h2"}, tlsConfig.NextProtos...) // h2 must before http/1.1
 	}
 
+	defer func() { // a later address failed: stop serving the earlier ones
+		if err != nil {
+			_ = sl.Close()
+		}
+	}()
 	for _, addr := range strings.Split(config.Listen, ",") {
 		addr := addr
 
@@ -213,6 +218,7 @@ func New(network string, config LC.TrojanServer, lc C.InboundListenConfig, tunne
 		} else if tlsConfig.GetCertificate != nil {
 			l = tls.NewListener(l, tlsConfig)
 		} else if !config.TrojanSSOption.Enabled && !config.AllowInsecure {
+			_ = l.Close()
 			return nil, errors.New("disallow using Trojan without any certificates/shadow-tls/res-tls/jls/reality/ss/allow-insecure config")
 		}
 		sl.listeners = append(sl.listeners, l)

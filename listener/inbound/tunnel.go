@@ -89,6 +89,7 @@ func (t *Tunnel) Listen(tunnel C.Tunnel) error {
 			case "tcp":
 				ttl, err := LT.New(t.Network(), addr, t.config.Target, t.config.SpecialProxy, lc, tunnel, t.Additions()...)
 				if err != nil {
+					_ = t.Close() // the addresses already listening
 					return err
 				}
 				t.ttl = append(t.ttl, ttl)
@@ -99,6 +100,7 @@ func (t *Tunnel) Listen(tunnel C.Tunnel) error {
 				}
 				tul, err := LT.NewUDP(addr, t.config.Target, t.config.SpecialProxy, lc, tunnel, t.Additions()...)
 				if err != nil {
+					_ = t.Close() // the addresses already listening
 					return err
 				}
 				t.tul = append(t.tul, tul)

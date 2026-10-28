@@ -38,7 +38,7 @@ type Listener struct {
 	padding   atomic.Pointer[padding.PaddingFactory]
 }
 
-func New(network string, config LC.AnyTLSServer, lc C.InboundListenConfig, tunnel C.Tunnel, additions ...inbound.Addition) (sl *Listener, err error) {
+func New(network string, config LC.AnyTLSServer, lc C.InboundListenConfig, tunnel C.Tunnel, additions ...inbound.Addition) (_ *Listener, err error) {
 	if len(additions) == 0 {
 		additions = []inbound.Addition{
 			inbound.WithInName("DEFAULT-ANYTLS"),
@@ -114,7 +114,7 @@ func New(network string, config LC.AnyTLSServer, lc C.InboundListenConfig, tunne
 		}
 	}
 
-	sl = &Listener{
+	sl := &Listener{
 		config:    config,
 		tlsConfig: tlsConfig,
 		userMap:   make(map[[32]byte]string),
@@ -142,6 +142,11 @@ func New(network string, config LC.AnyTLSServer, lc C.InboundListenConfig, tunne
 		return nil, err
 	}
 
+	defer func() { // a later address failed: stop serving the earlier ones
+		if err != nil {
+			_ = sl.Close()
+		}
+	}()
 	for _, addr := range strings.Split(config.Listen, ",") {
 		addr := addr
 
@@ -159,6 +164,7 @@ func New(network string, config LC.AnyTLSServer, lc C.InboundListenConfig, tunne
 		} else if tlsConfig.GetCertificate != nil {
 			l = tls.NewListener(l, tlsConfig)
 		} else if !config.AllowInsecure {
+			_ = l.Close()
 			return nil, errors.New("disallow using AnyTLS without certificates/shadow-tls/res-tls/jls/allow-insecure config")
 		}
 		sl.listeners = append(sl.listeners, l)
