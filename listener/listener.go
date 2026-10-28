@@ -775,6 +775,7 @@ func PatchInboundListeners(newListenerMap map[string]C.InboundListener, tunnel C
 		if oldListener, ok := inboundListeners[name]; ok {
 			if !oldListener.Config().Equal(newListener.Config()) {
 				_ = oldListener.Close()
+				delete(inboundListeners, name)
 			} else {
 				continue
 			}
