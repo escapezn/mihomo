@@ -54,6 +54,7 @@ type Listener struct {
 	autoRedirectOutputMark  int32
 
 	cDialerInterfaceFinder dialer.InterfaceFinder
+	forwardingCheck        io.Closer // Windows only, see forwarding_check.go
 
 	ruleUpdateCallbackCloser io.Closer
 	ruleUpdateMutex          sync.Mutex
@@ -440,6 +441,7 @@ func (l *Listener) startTun() (err error) {
 		err = E.Cause(err, "configure tun interface")
 		return
 	}
+	l.forwardingCheck = startForwardingCheck(l)
 
 	var tunWriter io.Writer
 	if w, ok := tunIf.(io.Writer); ok {
@@ -582,6 +584,9 @@ func (l *Listener) OnReload() {
 	if l.cDialerInterfaceFinder != nil {
 		dialer.DefaultInterfaceFinder.CompareAndSwap(nil, l.cDialerInterfaceFinder)
 	}
+	if w, ok := l.forwardingCheck.(interface{ wake() }); ok {
+		w.wake() // interface-name may have changed
+	}
 }
 
 type cDialerInterfaceFinder struct {
@@ -661,6 +666,7 @@ func (l *Listener) Close() error {
 		l.tunStack,
 		l.tunIf,
 		l.autoRedirect,
+		l.forwardingCheck, // after the TUN routes are gone, before the monitors it listens to
 		l.defaultInterfaceMonitor,
 		l.networkUpdateMonitor,
 		l.packageManager,
