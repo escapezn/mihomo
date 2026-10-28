@@ -11,6 +11,7 @@ import (
 	"github.com/metacubex/mihomo/component/ca"
 	"github.com/metacubex/mihomo/component/ech"
 	C "github.com/metacubex/mihomo/constant"
+	"github.com/metacubex/mihomo/listener/accept"
 	LC "github.com/metacubex/mihomo/listener/config"
 	"github.com/metacubex/mihomo/listener/jls"
 	"github.com/metacubex/mihomo/listener/reality"
@@ -294,12 +295,9 @@ func New(network string, config LC.VlessServer, lc C.InboundListenConfig, tunnel
 				return
 			}
 			for {
-				c, err := l.Accept()
+				c, err := accept.Next(l, func() bool { return sl.closed })
 				if err != nil {
-					if sl.closed {
-						break
-					}
-					continue
+					break
 				}
 
 				go sl.HandleConn(c, tunnel)

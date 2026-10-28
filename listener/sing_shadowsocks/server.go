@@ -11,6 +11,7 @@ import (
 	"github.com/metacubex/mihomo/adapter/inbound"
 	"github.com/metacubex/mihomo/common/sockopt"
 	C "github.com/metacubex/mihomo/constant"
+	"github.com/metacubex/mihomo/listener/accept"
 	LC "github.com/metacubex/mihomo/listener/config"
 	"github.com/metacubex/mihomo/listener/jls"
 	"github.com/metacubex/mihomo/listener/restls"
@@ -233,12 +234,9 @@ func New(network string, config LC.ShadowsocksServer, lc C.InboundListenConfig, 
 
 		go func() {
 			for {
-				c, err := l.Accept()
+				c, err := accept.Next(l, func() bool { return sl.closed })
 				if err != nil {
-					if sl.closed {
-						break
-					}
-					continue
+					break
 				}
 
 				go sl.HandleConn(c, tunnel)
