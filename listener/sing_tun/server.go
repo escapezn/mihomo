@@ -139,6 +139,14 @@ func New(options LC.Tun, tunnel C.Tunnel, additions ...inbound.Addition) (*Liste
 			inbound.WithSpecialRules(""),
 		}
 	}
+	if !supportRedirect {
+		options.AutoRedirect = false
+	}
+	// Validate before anything is started: the deferred cleanup below cannot
+	// undo monitors or the DefaultInterfaceFinder swap once l is nil.
+	if options.AutoRedirect && !options.AutoRoute {
+		return nil, E.New("`auto-route` is required by `auto-redirect`")
+	}
 
 	switch options.DNSMode {
 	case "", tun.DNSModeDisabled, tun.DNSModeNative, tun.DNSModeHijack:
@@ -186,9 +194,6 @@ func (l *Listener) startTun() (err error) {
 	rpTunnel := handler.Tunnel.(P.Tunnel)
 	if options.GSOMaxSize == 0 {
 		options.GSOMaxSize = 65536
-	}
-	if !supportRedirect {
-		options.AutoRedirect = false
 	}
 	tunName := options.Device
 	if options.FileDescriptor == 0 && (tunName == "" || !checkTunName(tunName)) {
@@ -385,9 +390,7 @@ func (l *Listener) startTun() (err error) {
 		l.routeAddressMap = make(map[string]*netipx.IPSet)
 		l.routeExcludeAddressMap = make(map[string]*netipx.IPSet)
 
-		if !options.AutoRoute {
-			return E.New("`auto-route` is required by `auto-redirect`")
-		}
+
 		disableNFTables, dErr := strconv.ParseBool(os.Getenv("DISABLE_NFTABLES"))
 		l.autoRedirect, err = tun.NewAutoRedirect(tun.AutoRedirectOptions{
 			TunOptions:             &tunOptions,
