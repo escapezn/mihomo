@@ -194,7 +194,11 @@ func nextDHCPRetryDelay(prev time.Duration) time.Duration {
 	if prev <= 0 {
 		return IfaceTTL
 	}
-	return min(prev*2, DHCPTTL)
+	next := prev * 2
+	if next > DHCPTTL {
+		return DHCPTTL
+	}
+	return next
 }
 
 func newDHCPClient(ifaceName string) *dhcpClient {
