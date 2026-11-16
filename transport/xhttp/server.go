@@ -76,23 +76,51 @@ func (c *httpServerConn) Wait() <-chan struct{} {
 	return c.done
 }
 
+// Limits on sessions that have not delivered any upload data yet. Such a
+// session costs a map entry, an upload queue and a reaper goroutine, and the
+// inner protocol (VLESS) has not seen a single byte from it, so nothing has
+// been authenticated. Xray-core only has the 30-second reaper for sessions
+// whose download GET never arrives; here the same deadline also covers a
+// session whose GET has arrived but whose upload never brings any data, and
+// the number of such sessions is capped. Once upload data has reached the
+// inner handler the session is no longer pending and is never reaped by these
+// limits, so long-lived downloads are unaffected.
+var (
+	maxPendingSessions    = 4096
+	pendingSessionTimeout = 30 * time.Second
+)
+
 type httpSession struct {
 	uploadQueue *UploadQueue
-	connected   chan struct{}
-	once        sync.Once
+	activated   chan struct{} // closed once upload data has reached the inner handler
+	activate    sync.Once
+	closed      chan struct{} // closed once the session is removed from the handler
+	pending     bool          // guarded by requestHandler.mu
 }
 
 func newHTTPSession(maxPackets int) *httpSession {
 	return &httpSession{
 		uploadQueue: NewUploadQueue(maxPackets),
-		connected:   make(chan struct{}),
+		activated:   make(chan struct{}),
+		closed:      make(chan struct{}),
+		pending:     true,
 	}
 }
 
-func (s *httpSession) markConnected() {
-	s.once.Do(func() {
-		close(s.connected)
-	})
+// sessionReader feeds the inner handler from the upload queue and marks the
+// session active on the first byte it delivers.
+type sessionReader struct {
+	*UploadQueue
+	h *requestHandler
+	s *httpSession
+}
+
+func (r *sessionReader) Read(b []byte) (int, error) {
+	n, err := r.UploadQueue.Read(b)
+	if n > 0 {
+		r.h.activateSession(r.s)
+	}
+	return n, err
 }
 
 type requestHandler struct {
@@ -107,6 +135,7 @@ type requestHandler struct {
 
 	mu       sync.Mutex
 	sessions map[string]*httpSession
+	pending  int // sessions that have not delivered any upload data yet
 }
 
 func NewServerHandler(opt ServerOption) (http.Handler, error) {
@@ -138,6 +167,21 @@ func NewServerHandler(opt ServerOption) (http.Handler, error) {
 	}, nil
 }
 
+func (h *requestHandler) activateSession(s *httpSession) {
+	s.activate.Do(func() {
+		h.mu.Lock()
+		if s.pending {
+			s.pending = false
+			h.pending--
+		}
+		h.mu.Unlock()
+		close(s.activated)
+	})
+}
+
+// upsertSession returns the session for sessionID, creating it if needed. It
+// returns nil when the session does not exist and too many sessions are
+// already pending.
 func (h *requestHandler) upsertSession(sessionID string) *httpSession {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -146,33 +190,46 @@ func (h *requestHandler) upsertSession(sessionID string) *httpSession {
 	if ok {
 		return s
 	}
+	if h.pending >= maxPendingSessions {
+		return nil
+	}
 
 	s = newHTTPSession(h.scMaxBufferedPosts.Max)
 	h.sessions[sessionID] = s
+	h.pending++
 
-	// Reap orphan sessions that never become fully connected (e.g. from probing).
-	// Matches Xray-core's 30-second reaper in upsertSession.
+	// Reap sessions that never deliver any upload data (e.g. from probing).
+	// Xray-core's reaper stops at the download GET; this one waits for data.
 	go func() {
-		timer := time.NewTimer(30 * time.Second)
+		timer := time.NewTimer(pendingSessionTimeout)
 		defer timer.Stop()
 		select {
 		case <-timer.C:
-			h.deleteSession(sessionID)
-		case <-s.connected:
+			h.deleteSession(sessionID, s)
+		case <-s.activated:
+		case <-s.closed:
 		}
 	}()
 
 	return s
 }
 
-func (h *requestHandler) deleteSession(sessionID string) {
+// deleteSession removes s if it is still the session registered under
+// sessionID, so a late close never drops a newer session with the same ID.
+func (h *requestHandler) deleteSession(sessionID string, s *httpSession) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	if s, ok := h.sessions[sessionID]; ok {
-		_ = s.uploadQueue.Close()
-		delete(h.sessions, sessionID)
+	if h.sessions[sessionID] != s {
+		return
 	}
+	delete(h.sessions, sessionID)
+	if s.pending {
+		s.pending = false
+		h.pending--
+	}
+	_ = s.uploadQueue.Close()
+	close(s.closed)
 }
 
 func (h *requestHandler) getSession(sessionID string) *httpSession {
@@ -273,6 +330,10 @@ func (h *requestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var currentSession *httpSession
 	if sessionId != "" {
 		currentSession = h.upsertSession(sessionId)
+		if currentSession == nil {
+			http.Error(w, "too many pending sessions", http.StatusServiceUnavailable)
+			return
+		}
 	}
 
 	// stream-up upload: POST /path/{session}
@@ -428,8 +489,6 @@ func (h *requestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// stream-up/packet-up download: GET /path/{session}
 	if r.Method == http.MethodGet && sessionId != "" && seqStr == "" && h.allowSessionDownload() {
-		currentSession.markConnected()
-
 		// magic header instructs nginx + apache to not buffer response body
 		w.Header().Set("X-Accel-Buffering", "no")
 		// A web-compliant header telling all middleboxes to disable caching.
@@ -449,9 +508,9 @@ func (h *requestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		httpSC := newHTTPServerConn(w, r.Body)
 		conn := &Conn{
 			writer: httpSC,
-			reader: currentSession.uploadQueue,
+			reader: &sessionReader{UploadQueue: currentSession.uploadQueue, h: h, s: currentSession},
 			onClose: func() {
-				h.deleteSession(sessionId)
+				h.deleteSession(sessionId, currentSession)
 			},
 		}
 		httputils.SetAddrFromRequest(&conn.NetAddr, r)
@@ -461,6 +520,7 @@ func (h *requestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-r.Context().Done():
 		case <-httpSC.Wait():
+		case <-currentSession.closed: // reaped before any upload data arrived
 		}
 
 		_ = conn.Close()

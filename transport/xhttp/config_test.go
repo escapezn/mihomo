@@ -110,3 +110,16 @@ func TestServerHandlerPathWithQuery(t *testing.T) {
 	handler.ServeHTTP(recorder, req)
 	assert.Equal(t, http.StatusNotFound, recorder.Result().StatusCode)
 }
+
+func TestDefaultReuseConfig(t *testing.T) {
+	cfg := DefaultReuseConfig()
+	concurrency, connections, err := cfg.ResolveManagerConfig()
+	require.NoError(t, err)
+	assert.Equal(t, Range{0, 0}, concurrency)
+	assert.Equal(t, Range{3, 3}, connections)
+	cMaxReuseTimes, hMaxRequestTimes, hMaxReusableSecs, err := cfg.ResolveEntryConfig()
+	require.NoError(t, err)
+	assert.Equal(t, Range{0, 0}, cMaxReuseTimes)
+	assert.Equal(t, Range{600, 900}, hMaxRequestTimes)
+	assert.Equal(t, Range{1800, 3000}, hMaxReusableSecs)
+}

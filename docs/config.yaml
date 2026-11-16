@@ -1095,6 +1095,9 @@ proxies: # socks5
       # sc-max-each-post-bytes: 1000000
       # sc-min-posts-interval-ms: 30
       # reuse-settings: # aka XMUX
+      #   ## when reuse-settings is missing or empty, the Xray-core default is used (except with alpn: [http/1.1]):
+      #   ## max-connections: "3", h-max-request-times: "600-900", h-max-reusable-secs: "1800-3000"
+      #   ## h-max-request-times counts HTTP requests (packet-up sends one per POST); set it to "1" to turn the reuse off
       #   max-concurrency: "16-32"
       #   max-connections: "0"
       #   c-max-reuse-times: "0"

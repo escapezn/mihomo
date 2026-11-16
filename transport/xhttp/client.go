@@ -255,6 +255,11 @@ func (c *PacketUpWriter) Close() error {
 	return nil
 }
 
+// IsHTTP1ALPN reports whether alpn selects the HTTP/1.1 mode: `alpn: [http/1.1]`.
+func IsHTTP1ALPN(alpn []string) bool {
+	return len(alpn) == 1 && alpn[0] == "http/1.1"
+}
+
 func NewTransport(dialRaw DialRawFunc, wrapTLS WrapTLSFunc, dialQUIC DialQUICFunc, alpn []string, keepAlivePeriod time.Duration) http.RoundTripper {
 	if len(alpn) == 1 && alpn[0] == "h3" { // `alpn: [h3]` means using h3 mode
 		if keepAlivePeriod == 0 {
@@ -274,7 +279,7 @@ func NewTransport(dialRaw DialRawFunc, wrapTLS WrapTLSFunc, dialQUIC DialQUICFun
 			},
 		}
 	}
-	if len(alpn) == 1 && alpn[0] == "http/1.1" { // `alpn: [http/1.1]` means using http/1.1 mode
+	if IsHTTP1ALPN(alpn) {
 		dialContext := func(ctx context.Context, network, addr string) (net.Conn, error) {
 			raw, err := dialRaw(ctx)
 			if err != nil {
@@ -398,16 +403,17 @@ func NewClient(cfg *Config, makeTransport TransportMaker, makeDownloadTransport 
 			return nil, err
 		}
 		client.makeTransport = client.uploadManager.GetTransport
-		if cfg.DownloadConfig != nil {
-			if makeDownloadTransport == nil {
-				return nil, fmt.Errorf("xhttp: download manager requires download transport maker")
-			}
-			client.downloadManager, err = NewReuseManager(cfg.DownloadConfig.ReuseConfig, makeDownloadTransport)
-			if err != nil {
-				return nil, err
-			}
-			client.makeDownloadTransport = client.downloadManager.GetTransport
+	}
+	// the download reuses its connections on its own, e.g. HTTP/2 download-settings with an HTTP/1.1 upload
+	if cfg.DownloadConfig != nil && cfg.DownloadConfig.ReuseConfig != nil {
+		if makeDownloadTransport == nil {
+			return nil, fmt.Errorf("xhttp: download manager requires download transport maker")
 		}
+		client.downloadManager, err = NewReuseManager(cfg.DownloadConfig.ReuseConfig, makeDownloadTransport)
+		if err != nil {
+			return nil, err
+		}
+		client.makeDownloadTransport = client.downloadManager.GetTransport
 	}
 	return client, nil
 }

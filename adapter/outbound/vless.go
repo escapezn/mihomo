@@ -127,6 +127,32 @@ type XHTTPReuseSettings struct {
 	HKeepAlivePeriod int    `proxy:"h-keep-alive-period,omitempty"`
 }
 
+func (s *XHTTPReuseSettings) isEmpty() bool {
+	return s == nil || *s == (XHTTPReuseSettings{})
+}
+
+// build converts the settings to the xhttp reuse config and the keep-alive period.
+// Like Xray-core, nil or empty settings mean the default XMUX, so connections are shared
+// instead of dialing a new one for every proxied connection.
+// The default is not applied to HTTP/1.1 (`alpn: [http/1.1]`): a connection there carries one request
+// at a time, so sharing it saves no handshakes, and Xray-core's HTTP/1.1 client doesn't keep connections
+// alive either. Explicit settings are always used as they are; `h-max-request-times: "1"` turns the reuse off.
+func (s *XHTTPReuseSettings) build(http1 bool) (*xhttp.ReuseConfig, time.Duration) {
+	if s.isEmpty() {
+		if http1 {
+			return nil, 0
+		}
+		return xhttp.DefaultReuseConfig(), 0
+	}
+	return &xhttp.ReuseConfig{
+		MaxConcurrency:   s.MaxConcurrency,
+		MaxConnections:   s.MaxConnections,
+		CMaxReuseTimes:   s.CMaxReuseTimes,
+		HMaxRequestTimes: s.HMaxRequestTimes,
+		HMaxReusableSecs: s.HMaxReusableSecs,
+	}, time.Duration(s.HKeepAlivePeriod) * time.Second
+}
+
 type XHTTPDownloadSettings struct {
 	// xhttp part
 	Path          *string             `proxy:"path,omitempty"`
@@ -624,19 +650,7 @@ func NewVless(option VlessOption) (*Vless, error) {
 			}
 		}
 
-		var hKeepAlivePeriod time.Duration
-
-		var reuseCfg *xhttp.ReuseConfig
-		if option.XHTTPOpts.ReuseSettings != nil {
-			reuseCfg = &xhttp.ReuseConfig{
-				MaxConcurrency:   option.XHTTPOpts.ReuseSettings.MaxConcurrency,
-				MaxConnections:   option.XHTTPOpts.ReuseSettings.MaxConnections,
-				CMaxReuseTimes:   option.XHTTPOpts.ReuseSettings.CMaxReuseTimes,
-				HMaxRequestTimes: option.XHTTPOpts.ReuseSettings.HMaxRequestTimes,
-				HMaxReusableSecs: option.XHTTPOpts.ReuseSettings.HMaxReusableSecs,
-			}
-			hKeepAlivePeriod = time.Duration(option.XHTTPOpts.ReuseSettings.HKeepAlivePeriod) * time.Second
-		}
+		reuseCfg, hKeepAlivePeriod := option.XHTTPOpts.ReuseSettings.build(xhttp.IsHTTP1ALPN(v.option.ALPN))
 
 		cfg := &xhttp.Config{
 			Host:                 requestHost,
@@ -814,14 +828,10 @@ func NewVless(option VlessOption) (*Vless, error) {
 			downloadCfg.Headers = lo.FromPtrOr(ds.Headers, v.option.XHTTPOpts.Headers)
 
 			if ds.ReuseSettings != nil {
-				downloadCfg.ReuseConfig = &xhttp.ReuseConfig{
-					MaxConcurrency:   ds.ReuseSettings.MaxConcurrency,
-					MaxConnections:   ds.ReuseSettings.MaxConnections,
-					CMaxReuseTimes:   ds.ReuseSettings.CMaxReuseTimes,
-					HMaxRequestTimes: ds.ReuseSettings.HMaxRequestTimes,
-					HMaxReusableSecs: ds.ReuseSettings.HMaxReusableSecs,
-				}
-				downloadHKeepAlivePeriod = time.Duration(ds.ReuseSettings.HKeepAlivePeriod) * time.Second
+				downloadCfg.ReuseConfig, downloadHKeepAlivePeriod = ds.ReuseSettings.build(xhttp.IsHTTP1ALPN(downloadALPN))
+			} else if v.option.XHTTPOpts.ReuseSettings.isEmpty() {
+				// nothing to inherit: the default depends on the HTTP version of the download
+				downloadCfg.ReuseConfig, _ = ds.ReuseSettings.build(xhttp.IsHTTP1ALPN(downloadALPN))
 			}
 
 			cfg.DownloadConfig = &downloadCfg

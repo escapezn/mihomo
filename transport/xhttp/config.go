@@ -425,6 +425,16 @@ func parseRange(s string) (Range, error) {
 	return Range{minVal, maxVal}, nil
 }
 
+// DefaultReuseConfig returns the reuse settings (aka XMUX) that Xray-core applies when "xmux" is left empty:
+// up to 3 connections, each one retired after 600-900 requests or 1800-3000 seconds.
+func DefaultReuseConfig() *ReuseConfig {
+	return &ReuseConfig{
+		MaxConnections:   "3",
+		HMaxRequestTimes: "600-900",
+		HMaxReusableSecs: "1800-3000",
+	}
+}
+
 func (c *ReuseConfig) ResolveManagerConfig() (Range, Range, error) {
 	if c == nil {
 		return Range{}, Range{}, nil
