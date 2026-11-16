@@ -44,8 +44,8 @@ type Listener struct {
 
 // service is the common part of shadowsocks.Service and shadowsocks.MultiService
 type service interface {
-	network.TCPConnectionHandler
-	network.UDPHandler
+	singNetwork.TCPConnectionHandler
+	singNetwork.UDPHandler
 }
 
 var _listener *Listener
