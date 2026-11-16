@@ -122,7 +122,7 @@ func (c *Config) GetRequestHeader() http.Header {
 func (c *Config) GetRequestHeaderWithPayload(payload []byte, uplinkChunkSize Range) http.Header {
 	header := c.GetRequestHeader()
 
-	key := c.UplinkDataKey
+	key := c.GetNormalizedUplinkDataKey(PlacementHeader)
 	encodedData := base64.RawURLEncoding.EncodeToString(payload)
 
 	for i := 0; len(encodedData) > 0; i++ {
@@ -142,7 +142,7 @@ func (c *Config) GetRequestHeaderWithPayload(payload []byte, uplinkChunkSize Ran
 func (c *Config) GetRequestCookiesWithPayload(payload []byte, uplinkChunkSize Range) []*http.Cookie {
 	cookies := []*http.Cookie{}
 
-	key := c.UplinkDataKey
+	key := c.GetNormalizedUplinkDataKey(PlacementCookie)
 	encodedData := base64.RawURLEncoding.EncodeToString(payload)
 
 	for i := 0; len(encodedData) > 0; i++ {
@@ -169,7 +169,7 @@ func (c *Config) WriteResponseHeader(writer http.ResponseWriter, requestMethod s
 
 	if c.GetNormalizedSessionPlacement() == PlacementCookie ||
 		c.GetNormalizedSeqPlacement() == PlacementCookie ||
-		c.XPaddingPlacement == PlacementCookie ||
+		(c.XPaddingObfsMode && c.GetNormalizedXPaddingPlacement() == PlacementCookie) ||
 		c.GetNormalizedUplinkDataPlacement() == PlacementCookie {
 		writer.Header().Set("Access-Control-Allow-Credentials", "true")
 	}
@@ -281,6 +281,61 @@ func (c *Config) GetNormalizedUplinkDataPlacement() string {
 		return PlacementBody
 	}
 	return c.UplinkDataPlacement
+}
+
+// GetNormalizedServerUplinkDataPlacement is the placement the server reads
+// packet-up data from. Unset means "auto" (header, cookie and body together),
+// as in Xray-core, so a server without the option accepts every client.
+func (c *Config) GetNormalizedServerUplinkDataPlacement() string {
+	if c.UplinkDataPlacement == "" {
+		return PlacementAuto
+	}
+	return c.UplinkDataPlacement
+}
+
+// GetNormalizedUplinkDataKey matches Xray-core's defaults: "x_data" for
+// cookies, "X-Data" for headers.
+func (c *Config) GetNormalizedUplinkDataKey(placement string) string {
+	if c.UplinkDataKey != "" {
+		return c.UplinkDataKey
+	}
+	if placement == PlacementCookie {
+		return "x_data"
+	}
+	return "X-Data"
+}
+
+// The x-padding-obfs-mode defaults, as Xray-core fills them in.
+
+func (c *Config) GetNormalizedXPaddingKey() string {
+	if c.XPaddingKey == "" {
+		return "x_padding"
+	}
+	return c.XPaddingKey
+}
+
+func (c *Config) GetNormalizedXPaddingHeader() string {
+	if c.XPaddingHeader == "" {
+		return "X-Padding"
+	}
+	return c.XPaddingHeader
+}
+
+func (c *Config) GetNormalizedXPaddingPlacement() string {
+	if c.XPaddingPlacement == "" {
+		return PlacementQueryInHeader
+	}
+	return c.XPaddingPlacement
+}
+
+// xPaddingObfsPlacement is the obfs-mode padding placement of requests and responses.
+func (c *Config) xPaddingObfsPlacement(rawURL string) XPaddingPlacement {
+	return XPaddingPlacement{
+		Placement: c.GetNormalizedXPaddingPlacement(),
+		Key:       c.GetNormalizedXPaddingKey(),
+		Header:    c.GetNormalizedXPaddingHeader(),
+		RawURL:    rawURL,
+	}
 }
 
 func (c *Config) GetNormalizedSessionKey() string {
@@ -512,12 +567,7 @@ func (c *Config) FillStreamRequest(req *http.Request, sessionID string) error {
 	config := XPaddingConfig{Length: length}
 
 	if c.XPaddingObfsMode {
-		config.Placement = XPaddingPlacement{
-			Placement: c.XPaddingPlacement,
-			Key:       c.XPaddingKey,
-			Header:    c.XPaddingHeader,
-			RawURL:    req.URL.String(),
-		}
+		config.Placement = c.xPaddingObfsPlacement(req.URL.String())
 		config.Method = PaddingMethod(c.XPaddingMethod)
 	} else {
 		config.Placement = XPaddingPlacement{
@@ -582,12 +632,7 @@ func (c *Config) FillPacketRequest(request *http.Request, sessionId string, seqS
 	config := XPaddingConfig{Length: length}
 
 	if c.XPaddingObfsMode {
-		config.Placement = XPaddingPlacement{
-			Placement: c.XPaddingPlacement,
-			Key:       c.XPaddingKey,
-			Header:    c.XPaddingHeader,
-			RawURL:    request.URL.String(),
-		}
+		config.Placement = c.xPaddingObfsPlacement(request.URL.String())
 		config.Method = PaddingMethod(c.XPaddingMethod)
 	} else {
 		config.Placement = XPaddingPlacement{

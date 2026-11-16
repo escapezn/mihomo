@@ -1081,16 +1081,16 @@ proxies: # socks5
       # x-padding-bytes: "100-1000"
       # x-padding-obfs-mode: false
       # x-padding-key: x_padding
-      # x-padding-header: Referer
+      # x-padding-header: X-Padding
       # x-padding-placement: queryInHeader # Available: queryInHeader, cookie, header, query
       # x-padding-method: repeat-x # Available: repeat-x, tokenish
-      # uplink-http-method: POST # Available: POST, PUT, PATCH, DELETE
+      # uplink-http-method: POST # Available: POST, PUT, PATCH, DELETE, GET (GET only with packet-up)
       # session-placement: path # Available: path, query, cookie, header
       # session-key: ""
       # seq-placement: path # Available: path, query, cookie, header
       # seq-key: ""
       # uplink-data-placement: body # Available: body, cookie, header
-      # uplink-data-key: ""
+      # uplink-data-key: "" # default: X-Data for header, x_data for cookie
       # uplink-chunk-size: 0 # only applicable when uplink-data-placement is not body
       # sc-max-each-post-bytes: 1000000
       # sc-min-posts-interval-ms: 30
@@ -2471,22 +2471,23 @@ listeners:
     #   x-padding-bytes: "100-1000"
     #   x-padding-obfs-mode: false
     #   x-padding-key: x_padding
-    #   x-padding-header: Referer
+    #   x-padding-header: X-Padding
     #   x-padding-placement: queryInHeader # Available: queryInHeader, cookie, header, query
     #   x-padding-method: repeat-x # Available: repeat-x, tokenish
-    #   uplink-http-method: POST # Available: POST, PUT, PATCH, DELETE
+    #   # uplink-http-method 服务端不限制：packet-up 上传可用任意方法（含 GET），与 Xray-core 一致
     #   session-placement: path # Available: path, query, cookie, header
     #   session-key: ""
     #   session-table: "" # Available: "", "uuid", "ALPHABET", "Alphabet", "BASE36", "Base62", "HEX", "alphabet", "base36", "hex", "number"
     #   session-length: "16-32" # 起始值不可为 0，总的 id 空间必须大于 21 亿，仅当session-table不为空或uuid时生效
     #   seq-placement: path # Available: path, query, cookie, header
     #   seq-key: ""
-    #   uplink-data-placement: body # Available: body, cookie, header
-    #   uplink-data-key: ""
+    #   uplink-data-placement: auto # Available: auto, body, cookie, header; auto 同时读取 header、cookie 和 body
+    #   uplink-data-key: "" # 默认 header 为 X-Data，cookie 为 x_data
     #   uplink-chunk-size: 0 # only applicable when uplink-data-placement is not body
     #   sc-max-buffered-posts: 30
     #   sc-stream-up-server-secs: "20-80"
     #   sc-max-each-post-bytes: 1000000
+    #   server-max-header-bytes: 0 # 请求头大小上限（h1 与 h2），0 为 1 MiB；Xray-core 默认 8192。数据放在 header/cookie 时需足够大
     # -------------------------
     # vless encryption服务端配置：
     # （原生外观 / 只 XOR 公钥 / 全随机数。1-RTT 每次下发随机 300 到 600 秒的 ticket 以便 0-RTT 复用 / 只允许 1-RTT）

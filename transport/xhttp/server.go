@@ -246,11 +246,7 @@ func (h *requestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	config := XPaddingConfig{Length: length}
 
 	if h.config.XPaddingObfsMode {
-		config.Placement = XPaddingPlacement{
-			Placement: h.config.XPaddingPlacement,
-			Key:       h.config.XPaddingKey,
-			Header:    h.config.XPaddingHeader,
-		}
+		config.Placement = h.config.xPaddingObfsPlacement("")
 		config.Method = PaddingMethod(h.config.XPaddingMethod)
 	} else {
 		config.Placement = XPaddingPlacement{
@@ -328,14 +324,17 @@ func (h *requestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// packet-up upload: POST /path/{session}/{seq}
-	if r.Method != http.MethodGet && sessionId != "" && seqStr != "" && h.allowPacketUpUpload() {
+	// packet-up upload: {any method} /path/{session}/{seq}
+	// As in Xray-core, a request with a seq is an upload whatever its method
+	// (uplink-http-method): CDNs that pass only GET/HEAD to the origin, or
+	// answer 405 to POST, still get through with GET/PUT/... uploads.
+	if sessionId != "" && seqStr != "" && h.allowPacketUpUpload() {
 		scMaxEachPostBytes := h.scMaxEachPostBytes.Max
-		dataPlacement := h.config.GetNormalizedUplinkDataPlacement()
-		uplinkDataKey := h.config.UplinkDataKey
+		dataPlacement := h.config.GetNormalizedServerUplinkDataPlacement()
 		var headerPayload []byte
 		var err error
 		if dataPlacement == PlacementAuto || dataPlacement == PlacementHeader {
+			uplinkDataKey := h.config.GetNormalizedUplinkDataKey(PlacementHeader)
 			var headerPayloadChunks []string
 			for i := 0; true; i++ {
 				chunk := r.Header.Get(fmt.Sprintf("%s-%d", uplinkDataKey, i))
@@ -354,6 +353,7 @@ func (h *requestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		var cookiePayload []byte
 		if dataPlacement == PlacementAuto || dataPlacement == PlacementCookie {
+			uplinkDataKey := h.config.GetNormalizedUplinkDataKey(PlacementCookie)
 			var cookiePayloadChunks []string
 			for i := 0; true; i++ {
 				cookieName := fmt.Sprintf("%s_%d", uplinkDataKey, i)
@@ -418,8 +418,8 @@ func (h *requestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if len(payload) == 0 {
-			// Methods without a body are usually cached by default.
+		if len(bodyPayload) == 0 || r.Method == http.MethodGet {
+			// Methods without a body are usually cached by default, and so are GET responses.
 			w.Header().Set("Cache-Control", "no-store")
 		}
 		w.WriteHeader(http.StatusOK)

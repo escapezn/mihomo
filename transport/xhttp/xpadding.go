@@ -267,8 +267,8 @@ func (c *Config) ExtractXPaddingFromRequest(req *http.Request, obfsMode bool) (s
 		}
 	}
 
-	key := c.XPaddingKey
-	header := c.XPaddingHeader
+	key := c.GetNormalizedXPaddingKey()
+	header := c.GetNormalizedXPaddingHeader()
 
 	if cookie, err := req.Cookie(key); err == nil {
 		if cookie != nil && cookie.Value != "" {
@@ -281,7 +281,7 @@ func (c *Config) ExtractXPaddingFromRequest(req *http.Request, obfsMode bool) (s
 	headerValue := req.Header.Get(header)
 
 	if headerValue != "" {
-		if c.XPaddingPlacement == PlacementHeader {
+		if c.GetNormalizedXPaddingPlacement() == PlacementHeader {
 			paddingPlacement := PlacementHeader + "=" + header
 			return headerValue, paddingPlacement
 		}

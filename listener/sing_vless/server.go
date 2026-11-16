@@ -204,6 +204,9 @@ func New(network string, config LC.VlessServer, lc C.InboundListenConfig, tunnel
 			return nil, errors.New("unsupported xhttp mode")
 		}
 	}
+	if config.XHTTPConfig.ServerMaxHeaderBytes < 0 {
+		return nil, errors.New("invalid negative value of xhttp server-max-header-bytes")
+	}
 	if config.XHTTPConfig.Path != "" || config.XHTTPConfig.Host != "" || config.XHTTPConfig.Mode != "" {
 		httpServer.Handler, err = xhttp.NewServerHandler(xhttp.ServerOption{
 			Config: xhttp.Config{
@@ -236,6 +239,13 @@ func New(network string, config LC.VlessServer, lc C.InboundListenConfig, tunnel
 		})
 		if err != nil {
 			return nil, err
+		}
+		// server-max-header-bytes (Xray-core serverMaxHeaderBytes) limits the request
+		// header size for h1 and, as SETTINGS_MAX_HEADER_LIST_SIZE, for h2. Raise it when
+		// uplink-data-placement puts packet-up data into headers or cookies.
+		// Unset keeps the net/http default (1 MiB), which is above Xray-core's 8192.
+		if config.XHTTPConfig.ServerMaxHeaderBytes > 0 {
+			httpServer.MaxHeaderBytes = config.XHTTPConfig.ServerMaxHeaderBytes
 		}
 		httpServer.Protocols.SetHTTP1(true)
 		httpServer.Protocols.SetHTTP2(true)
