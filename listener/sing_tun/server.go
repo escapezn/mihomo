@@ -489,11 +489,11 @@ func (l *Listener) startTun() (err error) {
 	}
 	l.tunIf = tunIf
 
-	l.tunStack, err = tun.NewStack(strings.ToLower(options.Stack.String()), stackOptions)
+	tunStack, err := tun.NewStack(strings.ToLower(options.Stack.String()), stackOptions)
 	if err != nil {
 		return
 	}
-	err = l.tunStack.Start()
+	err = l.startStack(tunStack)
 	if err != nil {
 		return
 	}
@@ -511,9 +511,8 @@ func (l *Listener) startTun() (err error) {
 			return
 		}
 		if tunOptions.AutoRedirectMarkMode {
-			l.autoRedirectOutputMark = int32(outputMark)
-			if !dialer.DefaultRoutingMark.CompareAndSwap(0, l.autoRedirectOutputMark) {
-				err = E.New("not allowed setting global routing-mark when working with autoRedirectMarkMode")
+			err = l.claimRoutingMark(int32(outputMark))
+			if err != nil {
 				return
 			}
 			l.autoRedirect.UpdateRouteAddressSet()
@@ -531,6 +530,24 @@ func (l *Listener) startTun() (err error) {
 	l.addrStr = fmt.Sprintf("%s(%s,%s), mtu: %d, auto route: %v, auto redir: %v, ip stack: %s, dns mode: %s",
 		tunName, tunOptions.Inet4Address, tunOptions.Inet6Address, tunMTU, options.AutoRoute, options.AutoRedirect, options.Stack, options.DNSMode)
 	return
+}
+
+// startStack records tunStack before starting it, so the deferred Close in New
+// also tears down a stack whose Start failed halfway.
+func (l *Listener) startStack(tunStack tun.Stack) error {
+	l.tunStack = tunStack
+	return tunStack.Start()
+}
+
+// claimRoutingMark takes the global routing-mark for auto-redirect mark mode.
+// l.autoRedirectOutputMark is set only once the mark is ours, otherwise Close
+// would reset a user-configured routing-mark that happens to be equal.
+func (l *Listener) claimRoutingMark(mark int32) error {
+	if !dialer.DefaultRoutingMark.CompareAndSwap(0, mark) {
+		return E.New("not allowed setting global routing-mark when working with autoRedirectMarkMode")
+	}
+	l.autoRedirectOutputMark = mark
+	return nil
 }
 
 func (l *Listener) ruleUpdateCallback(ruleProvider P.RuleProvider) {
