@@ -433,12 +433,13 @@ func (h *requestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		var bodyPayload []byte
+		var releaseBody func()
 		if dataPlacement == PlacementAuto || dataPlacement == PlacementBody {
 			if r.ContentLength > int64(scMaxEachPostBytes) {
 				http.Error(w, "body too large", http.StatusRequestEntityTooLarge)
 				return
 			}
-			bodyPayload, err = io.ReadAll(io.LimitReader(r.Body, int64(scMaxEachPostBytes)+1))
+			bodyPayload, releaseBody, err = readPacketBody(r.Body, r.ContentLength, scMaxEachPostBytes)
 			if err != nil {
 				http.Error(w, "failed to read body", http.StatusBadRequest)
 				return
@@ -446,6 +447,7 @@ func (h *requestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		var payload []byte
+		release := releaseBody // only while payload is bodyPayload itself
 		switch dataPlacement {
 		case PlacementHeader:
 			payload = headerPayload
@@ -454,18 +456,32 @@ func (h *requestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		case PlacementBody:
 			payload = bodyPayload
 		case PlacementAuto:
+			if len(headerPayload) == 0 && len(cookiePayload) == 0 {
+				payload = bodyPayload // the usual case: no copy
+				break
+			}
 			payload = headerPayload
 			payload = append(payload, cookiePayload...)
 			payload = append(payload, bodyPayload...)
+			if releaseBody != nil {
+				releaseBody()
+				release = nil
+			}
 		}
 
 		if len(payload) > h.scMaxEachPostBytes.Max {
+			if release != nil {
+				release()
+			}
 			http.Error(w, "body too large", http.StatusRequestEntityTooLarge)
 			return
 		}
 
 		seq, err := strconv.ParseUint(seqStr, 10, 64)
 		if err != nil {
+			if release != nil {
+				release()
+			}
 			http.Error(w, "invalid xhttp seq", http.StatusBadRequest)
 			return
 		}
@@ -473,6 +489,7 @@ func (h *requestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		err = currentSession.uploadQueue.Push(Packet{
 			Seq:     seq,
 			Payload: payload,
+			Release: release,
 		})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -556,6 +573,50 @@ func (h *requestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.NotFound(w, r)
+}
+
+// packetBodyPool recycles the bodies of packet-up uploads (up to
+// sc-max-each-post-bytes, 1 MB by default, per request). Reading them with
+// io.ReadAll grew a fresh slice from 512 bytes for every POST: about twice the
+// body in copies, the same again in zeroed memory, and the GC work for it, a
+// large part of the server's CPU for a packet-up upload.
+var packetBodyPool sync.Pool // of *[]byte
+
+// minPooledPacketBody: smaller bodies are allocated exactly; a pooled buffer
+// is only used for a body of at least half its capacity, so a small packet
+// waiting in an upload queue never pins a large buffer.
+const minPooledPacketBody = 32 << 10
+
+// readPacketBody reads a packet-up request body of at most limit bytes. When
+// the length is declared, the body is read into a buffer of that size, pooled
+// for large bodies; release (nil when not pooled) gives the buffer back once
+// the payload is no longer used.
+func readPacketBody(r io.Reader, contentLength int64, limit int) (payload []byte, release func(), err error) {
+	if contentLength < 0 || contentLength > int64(limit) {
+		// unknown length (HTTP/1.1 chunked, or HTTP/2 without content-length);
+		// the caller rejects a declared length above the limit.
+		payload, err = io.ReadAll(io.LimitReader(r, int64(limit)+1))
+		return payload, nil, err
+	}
+	n := int(contentLength)
+	if n < minPooledPacketBody {
+		payload = make([]byte, n)
+		if _, err = io.ReadFull(r, payload); err != nil {
+			return nil, nil, err
+		}
+		return payload, nil, nil
+	}
+	bp, _ := packetBodyPool.Get().(*[]byte)
+	if bp == nil || cap(*bp) < n || cap(*bp)/2 > n {
+		b := make([]byte, n)
+		bp = &b
+	}
+	payload = (*bp)[:n]
+	if _, err = io.ReadFull(r, payload); err != nil {
+		packetBodyPool.Put(bp)
+		return nil, nil, err
+	}
+	return payload, func() { packetBodyPool.Put(bp) }, nil
 }
 
 func splitNonEmpty(s string) []string {

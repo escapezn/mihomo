@@ -227,3 +227,75 @@ func TestServerHandlerPacketUpUploadWrongPlacement(t *testing.T) {
 	n, _ := session.uploadQueue.Read(make([]byte, 16))
 	assert.Equal(t, 0, n)
 }
+
+func TestReadPacketBody(t *testing.T) {
+	const limit = 1 << 20
+	big := bytes.Repeat([]byte{'x'}, 200<<10)
+
+	// declared length, large: pooled, given back by release
+	payload, release, err := readPacketBody(bytes.NewReader(big), int64(len(big)), limit)
+	require.NoError(t, err)
+	require.NotNil(t, release)
+	assert.Equal(t, big, payload)
+	release()
+
+	// declared length, small: exact allocation, nothing to release
+	payload, release, err = readPacketBody(bytes.NewReader([]byte("hello")), 5, limit)
+	require.NoError(t, err)
+	assert.Nil(t, release)
+	assert.Equal(t, "hello", string(payload))
+
+	// empty body
+	payload, release, err = readPacketBody(bytes.NewReader(nil), 0, limit)
+	require.NoError(t, err)
+	assert.Nil(t, release)
+	assert.Empty(t, payload)
+
+	// unknown length: read up to limit+1, the caller checks the size
+	payload, release, err = readPacketBody(bytes.NewReader(big), -1, 1000)
+	require.NoError(t, err)
+	assert.Nil(t, release)
+	assert.Len(t, payload, 1001)
+
+	// body shorter than declared
+	_, _, err = readPacketBody(bytes.NewReader(big[:100<<10]), int64(len(big)), limit)
+	assert.ErrorIs(t, err, io.ErrUnexpectedEOF)
+}
+
+// Packet-up bodies read into pooled buffers reach the inner reader intact and
+// in order, also when a buffer is reused for the next POST.
+func TestServerPacketUpPooledBodies(t *testing.T) {
+	config := Config{Path: "/xhttp", Mode: "packet-up"}
+	handler, err := NewServerHandler(ServerOption{
+		Config: config,
+		ConnHandler: func(conn net.Conn, r *http.Request) {
+			_ = conn.Close()
+		},
+	})
+	require.NoError(t, err)
+	h := handler.(*requestHandler)
+
+	var want []byte
+	for seq := 0; seq < 4; seq++ {
+		body := bytes.Repeat([]byte{byte('a' + seq)}, 100<<10+seq)
+		want = append(want, body...)
+		req := httptest.NewRequest(http.MethodPost, "https://example.com/xhttp", nil)
+		require.NoError(t, config.FillPacketRequest(req, "session", fmt.Sprint(seq), body))
+		recorder := httptest.NewRecorder()
+		h.ServeHTTP(recorder, req)
+		require.Equal(t, http.StatusOK, recorder.Result().StatusCode)
+
+		// drain packet seq before the next POST, so its buffer can be reused
+		s := h.getSession("session")
+		require.NotNil(t, s)
+		got := make([]byte, 0, len(body))
+		buf := make([]byte, 32<<10)
+		for len(got) < len(body) {
+			n, err := s.uploadQueue.Read(buf)
+			require.NoError(t, err)
+			got = append(got, buf[:n]...)
+		}
+		require.Equal(t, body, got)
+	}
+	h.deleteSession("session", h.getSession("session"))
+}
