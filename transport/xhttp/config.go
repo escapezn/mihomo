@@ -88,11 +88,9 @@ func (c *Config) EffectiveMode(hasReality bool) string {
 	return "packet-up"
 }
 
+// NormalizedPath returns the path part of Path (without the "?query" part), as Xray-core's GetNormalizedPath does.
 func (c *Config) NormalizedPath() string {
-	path := c.Path
-	if path == "" {
-		path = "/"
-	}
+	path, _, _ := strings.Cut(c.Path, "?")
 	if !strings.HasPrefix(path, "/") {
 		path = "/" + path
 	}
@@ -103,6 +101,13 @@ func (c *Config) NormalizedPath() string {
 		}
 	}
 	return path
+}
+
+// NormalizedQuery returns the raw "?query" part of Path that is sent with every request,
+// as Xray-core's GetNormalizedQuery does. The server ignores it when matching the path.
+func (c *Config) NormalizedQuery() string {
+	_, query, _ := strings.Cut(c.Path, "?")
+	return query
 }
 
 func (c *Config) GetRequestHeader() http.Header {
@@ -194,7 +199,7 @@ func (c *Config) GetNormalizedUplinkHTTPMethod() string {
 }
 
 func (c *Config) GetNormalizedScStreamUpServerSecs() (Range, error) {
-	r, err := ParseRange(c.ScStreamUpServerSecs, "20-80")
+	r, err := ParseRangeOrDefault(c.ScStreamUpServerSecs, "20-80")
 	if err != nil {
 		return Range{}, fmt.Errorf("invalid sc-stream-up-server-secs: %w", err)
 	}
@@ -202,34 +207,28 @@ func (c *Config) GetNormalizedScStreamUpServerSecs() (Range, error) {
 }
 
 func (c *Config) GetNormalizedScMaxBufferedPosts() (Range, error) {
-	r, err := ParseRange(c.ScMaxBufferedPosts, "30")
+	r, err := ParseRangeOrDefault(c.ScMaxBufferedPosts, "30")
 	if err != nil {
 		return Range{}, fmt.Errorf("invalid sc-max-buffered-posts: %w", err)
-	}
-	if r.Max == 0 {
-		return Range{}, fmt.Errorf("invalid sc-max-buffered-posts: must be greater than zero")
 	}
 	return r, nil
 }
 
 func (c *Config) GetNormalizedScMaxEachPostBytes() (Range, error) {
-	r, err := ParseRange(c.ScMaxEachPostBytes, "1000000")
+	r, err := ParseRangeOrDefault(c.ScMaxEachPostBytes, "1000000")
 	if err != nil {
 		return Range{}, fmt.Errorf("invalid sc-max-each-post-bytes: %w", err)
 	}
-	if r.Max == 0 {
+	if r.Min == 0 { // a zero-sized post would never carry any data
 		return Range{}, fmt.Errorf("invalid sc-max-each-post-bytes: must be greater than zero")
 	}
 	return r, nil
 }
 
 func (c *Config) GetNormalizedScMinPostsIntervalMs() (Range, error) {
-	r, err := ParseRange(c.ScMinPostsIntervalMs, "30")
+	r, err := ParseRangeOrDefault(c.ScMinPostsIntervalMs, "30")
 	if err != nil {
 		return Range{}, fmt.Errorf("invalid sc-min-posts-interval-ms: %w", err)
-	}
-	if r.Max == 0 {
-		return Range{}, fmt.Errorf("invalid sc-min-posts-interval-ms: must be greater than zero")
 	}
 	return r, nil
 }
@@ -329,6 +328,19 @@ func ParseRange(s string, fallback string) (Range, error) {
 		return parseRange(fallback)
 	}
 	return parseRange(s)
+}
+
+// ParseRangeOrDefault is like ParseRange, but also uses fallback when the range is "0" or "0-0".
+// Xray-core treats a range with To == 0 as unset and applies its default in that case.
+func ParseRangeOrDefault(s string, fallback string) (Range, error) {
+	r, err := ParseRange(s, fallback)
+	if err != nil {
+		return Range{}, err
+	}
+	if r.Max == 0 {
+		return parseRange(fallback)
+	}
+	return r, nil
 }
 
 func parseRange(s string) (Range, error) {
@@ -537,6 +549,9 @@ func (c *Config) FillPacketRequest(request *http.Request, sessionId string, seqS
 		request.Header = c.GetRequestHeader()
 		request.Body = io.NopCloser(bytes.NewReader(data))
 		request.ContentLength = int64(len(data))
+		request.GetBody = func() (io.ReadCloser, error) { // allow the transport to retry it (e.g. after a GOAWAY), like Xray-core
+			return io.NopCloser(bytes.NewReader(data)), nil
+		}
 	} else {
 		request.Body = nil
 		request.ContentLength = 0

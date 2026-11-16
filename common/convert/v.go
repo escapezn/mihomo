@@ -172,21 +172,28 @@ func handleVShareLink(names map[string]int, url *url.URL, scheme string, proxy m
 	return nil
 }
 
+// xhttpRange converts an xray-core Int32Range JSON value, which is either a number or a "from-to" string,
+// to the mihomo range string.
+func xhttpRange(v any) (string, bool) {
+	switch val := v.(type) {
+	case string:
+		if val != "" {
+			return val, true
+		}
+	case float64:
+		return strconv.FormatInt(int64(val), 10), true
+	}
+	return "", false
+}
+
 // parseXHTTPExtra maps xray-core extra JSON fields to mihomo xhttp-opts fields.
 func parseXHTTPExtra(extra map[string]any, opts map[string]any) {
 	// xmuxToReuse converts an xmux map to mihomo reuse-settings.
 	xmuxToReuse := func(xmux map[string]any) map[string]any {
 		reuse := make(map[string]any)
 		set := func(src, dst string) {
-			if v, ok := xmux[src]; ok {
-				switch val := v.(type) {
-				case string:
-					if val != "" {
-						reuse[dst] = val
-					}
-				case float64:
-					reuse[dst] = strconv.FormatInt(int64(val), 10)
-				}
+			if v, ok := xhttpRange(xmux[src]); ok {
+				reuse[dst] = v
 			}
 		}
 		set("maxConnections", "max-connections")
@@ -208,7 +215,7 @@ func parseXHTTPExtra(extra map[string]any, opts map[string]any) {
 		opts["no-grpc-header"] = true
 	}
 
-	if v, ok := extra["xPaddingBytes"].(string); ok && v != "" {
+	if v, ok := xhttpRange(extra["xPaddingBytes"]); ok {
 		opts["x-padding-bytes"] = v
 	}
 
@@ -252,10 +259,8 @@ func parseXHTTPExtra(extra map[string]any, opts map[string]any) {
 		opts["session-table"] = v
 	}
 
-	if v, ok := extra["sessionIDLength"].(string); ok && v != "" {
+	if v, ok := xhttpRange(extra["sessionIDLength"]); ok {
 		opts["session-length"] = v
-	} else if v, ok := extra["sessionIDLength"].(float64); ok {
-		opts["session-length"] = strconv.FormatInt(int64(v), 10)
 	}
 
 	if v, ok := extra["seqPlacement"].(string); ok && v != "" {
@@ -274,16 +279,16 @@ func parseXHTTPExtra(extra map[string]any, opts map[string]any) {
 		opts["uplink-data-key"] = v
 	}
 
-	if v, ok := extra["uplinkChunkSize"].(float64); ok {
-		opts["uplink-chunk-size"] = int(v)
+	if v, ok := xhttpRange(extra["uplinkChunkSize"]); ok {
+		opts["uplink-chunk-size"] = v
 	}
 
-	if v, ok := extra["scMaxEachPostBytes"].(float64); ok {
-		opts["sc-max-each-post-bytes"] = int(v)
+	if v, ok := xhttpRange(extra["scMaxEachPostBytes"]); ok {
+		opts["sc-max-each-post-bytes"] = v
 	}
 
-	if v, ok := extra["scMinPostsIntervalMs"].(float64); ok {
-		opts["sc-min-posts-interval-ms"] = int(v)
+	if v, ok := xhttpRange(extra["scMinPostsIntervalMs"]); ok {
+		opts["sc-min-posts-interval-ms"] = v
 	}
 
 	// xmux in root extra → reuse-settings
@@ -362,7 +367,13 @@ func parseXHTTPExtra(extra map[string]any, opts map[string]any) {
 				ds["headers"] = headers
 			}
 
-			// xmux inside downloadSettings.xhttpSettings.extra → download-settings.reuse-settings
+			// xmux inside downloadSettings.xhttpSettings → download-settings.reuse-settings
+			if xmuxAny, ok := xhttpAny["xmux"].(map[string]any); ok && len(xmuxAny) > 0 {
+				if reuse := xmuxToReuse(xmuxAny); len(reuse) > 0 {
+					ds["reuse-settings"] = reuse
+				}
+			}
+			// xmux inside downloadSettings.xhttpSettings.extra takes precedence, like in xray-core
 			if dsExtraAny, ok := xhttpAny["extra"].(map[string]any); ok {
 				if xmuxAny, ok := dsExtraAny["xmux"].(map[string]any); ok && len(xmuxAny) > 0 {
 					if reuse := xmuxToReuse(xmuxAny); len(reuse) > 0 {
