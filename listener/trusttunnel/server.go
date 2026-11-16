@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/metacubex/mihomo/adapter/inbound"
+	"github.com/metacubex/mihomo/common/net/fanin"
 	"github.com/metacubex/mihomo/common/sockopt"
 	"github.com/metacubex/mihomo/component/ca"
 	"github.com/metacubex/mihomo/component/ech"
@@ -100,42 +101,7 @@ func New(network string, config LC.TrustTunnelServer, lc C.InboundListenConfig, 
 		}
 	}
 
-	for _, addr := range strings.Split(config.Listen, ",") {
-		addr := addr
-
-		var (
-			tcpListener net.Listener
-			udpConn     net.PacketConn
-		)
-		if listenTCP {
-			tcpListener, err = lc.Listen(context.Background(), network, addr)
-			if err != nil {
-				_ = sl.Close()
-				return nil, err
-			}
-			sl.listeners = append(sl.listeners, tcpListener)
-		}
-		if listenUDP {
-			if network == "unix" && config.Port == "" {
-				log.Warnln("TrustTunnel: UDP listening requires port option on Unix domain socket, skipped for %s", addr)
-			} else {
-				udpAddr := addr
-				if network == "unix" && config.Port != "" {
-					udpAddr = net.JoinHostPort("127.0.0.1", config.Port)
-				}
-				udpConn, err = lc.ListenPacket(context.Background(), "udp", udpAddr)
-				if err != nil {
-					_ = sl.Close()
-					return nil, err
-				}
-
-				if err := sockopt.UDPReuseaddr(udpConn); err != nil {
-					log.Warnln("Failed to Reuse UDP Address: %s", err)
-				}
-				sl.udpListeners = append(sl.udpListeners, udpConn)
-			}
-		}
-
+	newService := func() *trusttunnel.Service {
 		service := trusttunnel.NewService(trusttunnel.ServiceOptions{
 			Ctx:                   context.Background(),
 			Logger:                log.SingLogger,
@@ -146,13 +112,47 @@ func New(network string, config LC.TrustTunnelServer, lc C.InboundListenConfig, 
 			QUICBBRProfile:        config.BBRProfile,
 		})
 		service.UpdateUsers(config.Users)
-		err = service.Start(tcpListener, udpConn, tlsConfig)
+		return service
+	}
+
+	if listenTCP {
+		for _, addr := range strings.Split(config.Listen, ",") {
+			addr := addr
+			tcpListener, err := lc.Listen(context.Background(), "tcp", addr)
+			if err != nil {
+				_ = sl.Close()
+				return nil, err
+			}
+			sl.listeners = append(sl.listeners, tcpListener)
+
+			service := newService()
+			sl.services = append(sl.services, service)
+			if err = service.Start(tcpListener, nil, tlsConfig); err != nil {
+				_ = sl.Close()
+				return nil, err
+			}
+		}
+	}
+	if listenUDP {
+		// One HTTP/3 server per host: the ports of a range share it.
+		udpConns, err := fanin.Listen(context.Background(), lc, config.Listen, func(udpConn net.PacketConn) {
+			if err := sockopt.UDPReuseaddr(udpConn); err != nil {
+				log.Warnln("Failed to Reuse UDP Address: %s", err)
+			}
+		})
 		if err != nil {
 			_ = sl.Close()
 			return nil, err
 		}
-
-		sl.services = append(sl.services, service)
+		sl.udpListeners = append(sl.udpListeners, udpConns...)
+		for _, udpConn := range udpConns {
+			service := newService()
+			sl.services = append(sl.services, service)
+			if err = service.Start(nil, udpConn, tlsConfig); err != nil {
+				_ = sl.Close()
+				return nil, err
+			}
+		}
 	}
 
 	return sl, nil
@@ -174,8 +174,9 @@ func (l *Listener) Close() error {
 		}
 	}
 	for _, lis := range l.udpListeners {
+		// the HTTP/3 service has closed its conn already
 		err := lis.Close()
-		if err != nil {
+		if err != nil && !errors.Is(err, net.ErrClosed) {
 			retErr = err
 		}
 	}
@@ -191,7 +192,7 @@ func (l *Listener) AddrList() (addrList []net.Addr) {
 		addrList = append(addrList, lis.Addr())
 	}
 	for _, lis := range l.udpListeners {
-		addrList = append(addrList, lis.LocalAddr())
+		addrList = append(addrList, fanin.LocalAddrs(lis)...)
 	}
 	return
 }

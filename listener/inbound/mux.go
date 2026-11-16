@@ -3,8 +3,9 @@ package inbound
 import "github.com/metacubex/mihomo/listener/sing"
 
 type MuxOption struct {
-	Padding bool          `inbound:"padding,omitempty"`
-	Brutal  BrutalOptions `inbound:"brutal,omitempty"`
+	Padding    bool          `inbound:"padding,omitempty"`
+	Brutal     BrutalOptions `inbound:"brutal,omitempty"`
+	MaxStreams int           `inbound:"max-streams,omitempty"`
 }
 
 type BrutalOptions struct {
@@ -21,5 +22,6 @@ func (m MuxOption) Build() sing.MuxOption {
 			Up:      m.Brutal.Up,
 			Down:    m.Brutal.Down,
 		},
+		MaxStreams: m.MaxStreams,
 	}
 }
