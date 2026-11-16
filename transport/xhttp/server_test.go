@@ -123,7 +123,7 @@ func TestServerHandlerModeRestrictions(t *testing.T) {
 			}
 			handler, err := NewServerHandler(ServerOption{
 				Config: config,
-				ConnHandler: func(conn net.Conn) {
+				ConnHandler: func(conn net.Conn, _ *http.Request) {
 					_ = conn.Close()
 				},
 			})
@@ -168,7 +168,7 @@ func TestServerHandlerPacketUpUploadPlacements(t *testing.T) {
 						}
 						handler, err := NewServerHandler(ServerOption{
 							Config:      serverConfig,
-							ConnHandler: func(conn net.Conn) { _ = conn.Close() },
+							ConnHandler: func(conn net.Conn, _ *http.Request) { _ = conn.Close() },
 						})
 						require.NoError(t, err)
 
@@ -207,7 +207,7 @@ func TestServerHandlerPacketUpUploadPlacements(t *testing.T) {
 func TestServerHandlerPacketUpUploadWrongPlacement(t *testing.T) {
 	handler, err := NewServerHandler(ServerOption{
 		Config:      Config{Path: "/xhttp", Mode: "packet-up", UplinkDataPlacement: PlacementBody},
-		ConnHandler: func(conn net.Conn) { _ = conn.Close() },
+		ConnHandler: func(conn net.Conn, _ *http.Request) { _ = conn.Close() },
 	})
 	require.NoError(t, err)
 	clientConfig := Config{Path: "/xhttp", Mode: "packet-up", UplinkDataPlacement: PlacementHeader}

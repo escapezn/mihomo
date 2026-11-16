@@ -86,7 +86,7 @@ func TestServerHandlerPathWithQuery(t *testing.T) {
 	}
 	handler, err := NewServerHandler(ServerOption{
 		Config: config,
-		ConnHandler: func(conn net.Conn) {
+		ConnHandler: func(conn net.Conn, _ *http.Request) {
 			_ = conn.Close()
 		},
 	})

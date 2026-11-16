@@ -118,6 +118,10 @@ func (s *Service[T]) NewConnection(ctx context.Context, conn net.Conn, metadata 
 		return E.New("flow mismatch: expected ", flowName(userFlow), ", but got ", flowName(requestFlow))
 	}
 
+	if onAuthenticated := onAuthenticatedFrom(ctx); onAuthenticated != nil {
+		onAuthenticated()
+	}
+
 	responseConn := &serverConn{ExtendedConn: bufio.NewExtendedConn(conn)}
 	switch requestFlow {
 	case vless.XRV:

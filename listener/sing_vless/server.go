@@ -232,10 +232,11 @@ func New(network string, config LC.VlessServer, lc C.InboundListenConfig, tunnel
 				ScMaxBufferedPosts:   config.XHTTPConfig.ScMaxBufferedPosts,
 				ScMaxEachPostBytes:   config.XHTTPConfig.ScMaxEachPostBytes,
 			},
-			ConnHandler: func(conn net.Conn) {
-				sl.HandleConn(conn, tunnel, additions...)
+			ConnHandler: func(conn net.Conn, r *http.Request) {
+				sl.HandleHTTPConn(r, conn, tunnel, additions...)
 			},
-			HttpHandler: httpServer.Handler,
+			HttpHandler:           httpServer.Handler,
+			ReportsAuthentication: true,
 		})
 		if err != nil {
 			return nil, err
@@ -337,6 +338,40 @@ func (l *Listener) AddrList() (addrList []net.Addr) {
 
 func (l *Listener) HandleConn(conn net.Conn, tunnel C.Tunnel, additions ...inbound.Addition) {
 	ctx := sing.WithAdditions(context.TODO(), additions...)
+	if l.decryption != nil {
+		c, err := l.decryption.Handshake(conn, nil)
+		if err != nil {
+			_ = conn.Close()
+			return
+		}
+		conn = c
+	}
+	err := l.service.NewConnection(ctx, conn, metadata.Metadata{
+		Protocol: "vless",
+		Source:   metadata.SocksaddrFromNet(conn.RemoteAddr()),
+	})
+	if err != nil {
+		_ = conn.Close()
+		return
+	}
+}
+
+type onAuthenticatedKey struct{}
+
+func withOnAuthenticated(ctx context.Context, fn func()) context.Context {
+	return context.WithValue(ctx, onAuthenticatedKey{}, fn)
+}
+
+func onAuthenticatedFrom(ctx context.Context) func() {
+	fn, _ := ctx.Value(onAuthenticatedKey{}).(func())
+	return fn
+}
+
+func (l *Listener) HandleHTTPConn(r *http.Request, conn net.Conn, tunnel C.Tunnel, additions ...inbound.Addition) {
+	ctx := sing.WithAdditions(context.TODO(), additions...)
+	if onAuthenticated := xhttp.OnAuthenticated(r); onAuthenticated != nil {
+		ctx = withOnAuthenticated(ctx, onAuthenticated)
+	}
 	if l.decryption != nil {
 		c, err := l.decryption.Handshake(conn, nil)
 		if err != nil {
