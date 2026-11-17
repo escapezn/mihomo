@@ -103,6 +103,7 @@ func (u *CoreUpdater) Update(currentExePath string, channel string, force bool) 
 	if err != nil {
 		return fmt.Errorf("check currentExePath %q: %w", currentExePath, err)
 	}
+	currentExePath = resolveExePath(currentExePath)
 
 	baseURL := CoreAlphaURL()
 	switch strings.ToLower(channel) {
@@ -178,12 +179,85 @@ func (u *CoreUpdater) Update(currentExePath string, channel string, force bool) 
 		return fmt.Errorf("backuping: %w", err)
 	}
 
-	err = u.copyFile(updateExePath, currentExePath)
+	err = u.install(updateExePath, currentExePath)
 	if err != nil {
+		if runtime.GOOS == "windows" {
+			// backup moved the executable away; without this there is
+			// nothing left to start.
+			if restoreErr := u.restore(backupExePath, currentExePath); restoreErr != nil {
+				return fmt.Errorf("replacing: %w (restoring %s failed: %v)", err, backupExePath, restoreErr)
+			}
+		}
 		return fmt.Errorf("replacing: %w", err)
 	}
 
 	return nil
+}
+
+// install puts newExePath at currentExePath. The new binary is written in
+// full next to the target and then renamed over it, so a failed copy (disk
+// full, a scanner holding the file, an I/O error) never leaves
+// currentExePath missing or truncated, and the running binary is never
+// rewritten in place.
+func (u *CoreUpdater) install(newExePath, currentExePath string) error {
+	tmpPath := currentExePath + ".new"
+	_ = os.Remove(tmpPath)
+	if err := u.copyFile(newExePath, tmpPath); err != nil {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	if err := renameRetrying(tmpPath, currentExePath); err != nil {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	return nil
+}
+
+// resolveExePath follows symlinks in the executable path. os.Executable on
+// macOS returns the path the binary was started by (a Homebrew-style
+// bin/citrus link, say); renaming over it would replace the link with a
+// regular file and leave the real binary stale.
+func resolveExePath(path string) string {
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		return resolved
+	}
+	return path
+}
+
+var (
+	renameFile       = os.Rename
+	renameAttempts   = 1
+	renameRetryDelay = 200 * time.Millisecond
+)
+
+func init() {
+	if runtime.GOOS == "windows" {
+		// An on-access scanner commonly holds a just-written executable
+		// open without FILE_SHARE_DELETE for a moment, failing the rename
+		// with a sharing violation; retry for about two seconds.
+		renameAttempts = 10
+	}
+}
+
+func renameRetrying(from, to string) error {
+	for attempt := 1; ; attempt++ {
+		err := renameFile(from, to)
+		if err == nil || attempt >= renameAttempts {
+			return err
+		}
+		time.Sleep(renameRetryDelay)
+	}
+}
+
+// restore puts the backup made by backup back at currentExePath.
+func (u *CoreUpdater) restore(backupExePath, currentExePath string) error {
+	if runtime.GOOS == "windows" {
+		// backup renamed the executable away: rename it back (over the new
+		// binary, if one is there). Unlike a copy this cannot fail for lack
+		// of disk space.
+		return renameRetrying(backupExePath, currentExePath)
+	}
+	return u.install(backupExePath, currentExePath)
 }
 
 func (u *CoreUpdater) getLatestVersion(versionURL string) (version string, err error) {
@@ -225,6 +299,7 @@ func (u *CoreUpdater) download(updateDir, packagePath, packageURL string) (err e
 	}()
 
 	log.Debugln("updateDir %s", updateDir)
+	_ = os.RemoveAll(updateDir)
 	err = os.Mkdir(updateDir, 0o755)
 	if err != nil {
 		return fmt.Errorf("mkdir error: %w", err)
@@ -476,6 +551,10 @@ func (u *CoreUpdater) copyFile(src, dst string) (err error) {
 	_, err = io.Copy(wc, rc)
 	if err != nil {
 		return fmt.Errorf("io.Copy(): %w", err)
+	}
+
+	if err = wc.Sync(); err != nil {
+		return fmt.Errorf("sync %s: %w", dst, err)
 	}
 
 	if runtime.GOOS == "darwin" {
