@@ -122,7 +122,7 @@ func New(network string, config LC.TrustTunnelServer, lc C.InboundListenConfig, 
 	if listenTCP {
 		for _, addr := range strings.Split(config.Listen, ",") {
 			addr := addr
-			tcpListener, err := lc.Listen(context.Background(), "tcp", addr)
+			tcpListener, err := lc.Listen(context.Background(), network, addr)
 			if err != nil {
 				_ = sl.Close()
 				return nil, err
@@ -138,23 +138,34 @@ func New(network string, config LC.TrustTunnelServer, lc C.InboundListenConfig, 
 		}
 	}
 	if listenUDP {
-		// One HTTP/3 server per host: the ports of a range share it.
-		udpConns, err := fanin.Listen(context.Background(), lc, config.Listen, func(udpConn net.PacketConn) {
-			if err := sockopt.UDPReuseaddr(udpConn); err != nil {
-				log.Warnln("Failed to Reuse UDP Address: %s", err)
+		udpListen := config.Listen
+		if network == "unix" {
+			if config.Port == "" {
+				log.Warnln("TrustTunnel: UDP listening requires port option on Unix domain socket, skipped for %s", config.Listen)
+				udpListen = ""
+			} else {
+				udpListen = net.JoinHostPort("127.0.0.1", config.Port)
 			}
-		})
-		if err != nil {
-			_ = sl.Close()
-			return nil, err
 		}
-		sl.udpListeners = append(sl.udpListeners, udpConns...)
-		for _, udpConn := range udpConns {
-			service := newService()
-			sl.services = append(sl.services, service)
-			if err = service.Start(nil, udpConn, tlsConfig); err != nil {
+		if udpListen != "" {
+			// One HTTP/3 server per host: the ports of a range share it.
+			udpConns, err := fanin.Listen(context.Background(), lc, udpListen, func(udpConn net.PacketConn) {
+				if err := sockopt.UDPReuseaddr(udpConn); err != nil {
+					log.Warnln("Failed to Reuse UDP Address: %s", err)
+				}
+			})
+			if err != nil {
 				_ = sl.Close()
 				return nil, err
+			}
+			sl.udpListeners = append(sl.udpListeners, udpConns...)
+			for _, udpConn := range udpConns {
+				service := newService()
+				sl.services = append(sl.services, service)
+				if err = service.Start(nil, udpConn, tlsConfig); err != nil {
+					_ = sl.Close()
+					return nil, err
+				}
 			}
 		}
 	}
