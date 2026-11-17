@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/metacubex/mihomo/transport/v2ray"
+	"github.com/metacubex/mihomo/transport/vmess"
 )
 
 type countingDialer struct {
@@ -59,7 +59,7 @@ func newCountingClient(t *testing.T, server *httptest.Server, maxConnections int
 		Server:         server.Listener.Addr().String(),
 		Username:       "user",
 		Password:       "password",
-		TLSConfig:      &v2ray.TLSConfig{Host: "example.com", SkipCertVerify: true},
+		TLSConfig:      &vmess.TLSConfig{Host: "example.com", SkipCertVerify: true},
 		MaxConnections: maxConnections,
 	})
 	if err != nil {

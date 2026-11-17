@@ -45,7 +45,7 @@ func (c *failingListenConfig) ListenPacket(ctx context.Context, network, address
 // until the listener was closed.
 func TestAcceptLoopBacksOff(t *testing.T) {
 	lc := &failingListenConfig{}
-	sl, err := New(LC.TrojanServer{Enable: true, Listen: "127.0.0.1:0", AllowInsecure: true}, lc, nil)
+	sl, err := New("tcp", LC.TrojanServer{Enable: true, Listen: "127.0.0.1:0", AllowInsecure: true}, lc, nil)
 	require.NoError(t, err)
 	time.Sleep(200 * time.Millisecond)
 	// 5+10+20+40+80ms of back-off fit in 200ms

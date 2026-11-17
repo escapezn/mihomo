@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/metacubex/mihomo/transport/v2ray"
+	"github.com/metacubex/mihomo/transport/vmess"
 )
 
 // freezeProxy forwards TCP to target. freeze stops the connections open at
@@ -145,7 +145,7 @@ func newProxiedClient(t *testing.T, address string, pingInterval, pingTimeout ti
 		Server:         address,
 		Username:       "user",
 		Password:       "password",
-		TLSConfig:      &v2ray.TLSConfig{Host: "example.com", SkipCertVerify: true},
+		TLSConfig:      &vmess.TLSConfig{Host: "example.com", SkipCertVerify: true},
 		MaxConnections: 1,
 		PingInterval:   pingInterval,
 		PingTimeout:    pingTimeout,

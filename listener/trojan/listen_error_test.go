@@ -30,7 +30,7 @@ func requireFree(t *testing.T, addr string) {
 
 func TestNewInsecureRejectedFreesPort(t *testing.T) {
 	addr := freeAddr(t)
-	_, err := New(LC.TrojanServer{Enable: true, Listen: addr}, inbound.NewListenConfig(), nil)
+	_, err := New("tcp", LC.TrojanServer{Enable: true, Listen: addr}, inbound.NewListenConfig(), nil)
 	require.ErrorContains(t, err, "disallow using Trojan")
 	requireFree(t, addr)
 }
@@ -41,7 +41,7 @@ func TestNewLaterAddressFailsFreesEarlier(t *testing.T) {
 	require.NoError(t, err)
 	defer busy.Close()
 
-	_, err = New(LC.TrojanServer{
+	_, err = New("tcp", LC.TrojanServer{
 		Enable:        true,
 		Listen:        first + "," + busy.Addr().String(),
 		AllowInsecure: true,

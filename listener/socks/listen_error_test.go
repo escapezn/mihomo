@@ -19,7 +19,7 @@ func TestNewWithConfigBadCertificateFreesPort(t *testing.T) {
 	addr := l.Addr().String()
 	require.NoError(t, l.Close())
 
-	_, err = NewWithConfig(LC.AuthServer{
+	_, err = NewWithConfig("tcp", LC.AuthServer{
 		Enable:      true,
 		Listen:      addr,
 		Certificate: "missing.crt",

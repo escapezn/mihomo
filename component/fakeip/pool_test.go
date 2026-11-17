@@ -340,7 +340,7 @@ func TestPool_FlushAndStoreStateTakeLock(t *testing.T) {
 		}
 		pool.mux.Unlock()
 
-		for range 2 {
+		for i := 0; i < 2; i++ {
 			select {
 			case <-done:
 			case <-time.After(5 * time.Second):

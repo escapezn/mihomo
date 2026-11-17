@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/metacubex/mihomo/transport/v2ray"
+	"github.com/metacubex/mihomo/transport/vmess"
 )
 
 // silentFirstDialer sends the first dial to a listener that accepts TCP and
@@ -75,7 +75,7 @@ func TestClientDialTimesOutOnSilentServer(t *testing.T) {
 		Server:           server.Listener.Addr().String(),
 		Username:         "user",
 		Password:         "password",
-		TLSConfig:        &v2ray.TLSConfig{Host: "example.com", SkipCertVerify: true},
+		TLSConfig:        &vmess.TLSConfig{Host: "example.com", SkipCertVerify: true},
 		MaxConnections:   1,
 		HandshakeTimeout: 300 * time.Millisecond,
 	})

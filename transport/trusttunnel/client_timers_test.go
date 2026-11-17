@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/metacubex/mihomo/transport/v2ray"
+	"github.com/metacubex/mihomo/transport/vmess"
 
 	"github.com/metacubex/http"
 )
@@ -14,7 +14,7 @@ func newTimersClient(t *testing.T, options ClientOptions) (*Client, error) {
 	t.Helper()
 	options.Dialer = &countingDialer{}
 	options.Server = "127.0.0.1:1"
-	options.TLSConfig = &v2ray.TLSConfig{Host: "example.com", SkipCertVerify: true}
+	options.TLSConfig = &vmess.TLSConfig{Host: "example.com", SkipCertVerify: true}
 	client, err := NewClient(context.Background(), options)
 	if err == nil {
 		t.Cleanup(func() { _ = client.Close() })

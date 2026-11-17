@@ -102,7 +102,11 @@ func benchShortConn(proxy C.ProxyAdapter, dst netip.AddrPort) error {
 
 func runParallel(b *testing.B, clients int, fn func() error) {
 	b.ReportAllocs()
-	b.SetParallelism(max(1, clients/runtime.GOMAXPROCS(0)))
+	p := clients / runtime.GOMAXPROCS(0)
+	if p < 1 {
+		p = 1
+	}
+	b.SetParallelism(p)
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
