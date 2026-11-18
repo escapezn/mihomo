@@ -18,6 +18,34 @@
   </a>
 </p>
 
+## Fork Highlights
+
+This fork enhances Mihomo with production-grade IPC, robust packet rejection, Windows kernel-level driver integration, and backported security & throughput optimizations from [Citrus](https://github.com/getmikan/Citrus).
+
+### Key Differences & Enhancements
+
+- **Unix Domain Socket (UDS) First-Class Support**
+  - Native filesystem UDS and Linux abstract socket listening for HTTP, SOCKS5, and Mixed inbounds (`*-socket` config fields).
+  - Camouflage fallback: REALITY inbound `dest` supports directly dialing local UDS endpoints with zero-overhead IPC.
+  - Active socket paths dynamically exposed via the RESTful API controller.
+
+- **Advanced REJECT Policy & Adaptive Rate Limiting**
+  - **Differentiated block behavior**: Standard `REJECT` (sends RFC-compliant ICMP Port Unreachable / TCP RST) vs. `REJECT-DROP` (silent blackhole for stealth).
+  - **Zero-allocation sliding-window limiter** (`reject-auto-drop`): Automatically downgrades aggressive flood requests to silent drops, safeguarding CPU resources during DDoS/scanning.
+
+- **Windows WFP Driver & Intercept Mode**
+  - Integrates the lightweight Windows Filtering Platform (WFP) driver without requiring third-party virtual TUN adapters.
+  - Kernel-level packet filtering with MIPS network stack support and batched packet I/O for high-throughput concurrency.
+
+- **Citrus Modern Protocol Hardening & Throughput Tuning**
+  - **XHTTP / XMUX**: Pipelined packet-up uploads, packet body pooling to drastically reduce GC pressure, and pre-auth concurrency limits aligned with Xray-core.
+  - **TrustTunnel anti-probing**: Active camouflage `fallback` to real websites, zombie session scavenging (bi-directional 10s/5s keepalive), and configurable timeout tuners.
+  - **Core security & resilience**: Symlink escape defense, atomic cache/provider writes, fake-IP concurrency deadlock fixes, and exponential DHCP discovery retries.
+
+- **Customizability & Portability**
+  - Configurable kernel update source via `core-update-url`.
+  - Streamlined build matrix and backward compatibility maintained for Go 1.20+.
+
 ## Features
 
 - Local HTTP/HTTPS/SOCKS server with authentication support
@@ -93,6 +121,8 @@ API.
 - [v2ray/v2ray-core](https://github.com/v2ray/v2ray-core)
 - [WireGuard/wireguard-go](https://github.com/WireGuard/wireguard-go)
 - [yaling888/clash-plus-pro](https://github.com/yaling888/clash)
+- [getmikan/Citrus](https://github.com/getmikan/Citrus)
+- [Zayrick/mihomo](https://github.com/Zayrick/mihomo)
 
 ## License
 
