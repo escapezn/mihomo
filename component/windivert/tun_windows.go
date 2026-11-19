@@ -283,7 +283,7 @@ func (t *Tun) processPacket(p []byte, addr address) (address, bool) {
 		return addr, true
 	}
 	if t.options.Stack == "mips" {
-		completeChecksums(p, info, addr.Flags)
+		ensureMIPSChecksums(p, info, addr.Flags)
 	}
 	// Replies are inbound on this interface; zero checksum flags request recalculation.
 	addr = address{IfIdx: addr.IfIdx, SubIfIdx: addr.SubIfIdx}

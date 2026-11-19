@@ -98,25 +98,24 @@ func (d *stackDevice) Close() error {
 	}
 }
 
-func completeChecksums(p []byte, info packetInfo, flags uint32) {
-	// Windows can leave the IPv4 checksum zero even with IPChecksum set.
-	if info.source.Addr().Is4() && (flags&flagIPChecksum == 0 || binary.BigEndian.Uint16(p[10:]) == 0) {
-		p[10], p[11] = 0, 0
-		binary.BigEndian.PutUint16(p[10:], mipstack.InternetChecksum(p[:info.offset]))
+// stackDevice implements tun.WinTun, so sing-tun enables mipstack RX checksum
+// offload for IPv4 headers, TCP, and nonzero UDP checksums. Only IPv6 UDP
+// datagrams whose wire checksum is still 0 due to hardware offload need user-mode
+// completion; genuinely invalid zero-checksum IPv6 UDP (flagUDPChecksum set) is
+// left intact for mipstack to reject.
+func ensureMIPSChecksums(p []byte, info packetInfo, flags uint32) {
+	if info.protocol != 17 || !info.source.Addr().Is6() || flags&flagUDPChecksum != 0 {
+		return
 	}
 	payload := p[info.offset:info.size]
-	checksumOffset, checksumFlag := 16, uint32(flagTCPChecksum)
-	if info.protocol == 17 {
-		length := int(binary.BigEndian.Uint16(payload[4:]))
-		payload = payload[:length]
-		checksumOffset, checksumFlag = 6, flagUDPChecksum
+	length := int(binary.BigEndian.Uint16(payload[4:]))
+	payload = payload[:length]
+	if binary.BigEndian.Uint16(payload[6:]) != 0 {
+		return
 	}
-	if flags&checksumFlag == 0 {
-		payload[checksumOffset], payload[checksumOffset+1] = 0, 0
-		checksum, _ := mipstack.IPTransportChecksum(info.source.Addr(), info.destination.Addr(), int(info.protocol), payload)
-		if info.protocol == 17 && checksum == 0 {
-			checksum = 0xffff
-		}
-		binary.BigEndian.PutUint16(payload[checksumOffset:], checksum)
+	checksum, _ := mipstack.IPTransportChecksum(info.source.Addr(), info.destination.Addr(), int(info.protocol), payload)
+	if checksum == 0 {
+		checksum = 0xffff
 	}
+	binary.BigEndian.PutUint16(payload[6:], checksum)
 }
