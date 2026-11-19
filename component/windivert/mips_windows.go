@@ -81,7 +81,7 @@ func (d *stackDevice) Write(p []byte) (int, error) {
 	addr.Flags = flagIPChecksum | flagTCPChecksum | flagUDPChecksum
 	owned := pool.Get(len(p))
 	copy(owned, p)
-	if err := d.tun.queuePacket(owned, addr); err != nil {
+	if err := d.tun.queuePacketWithKey(owned, addr, packetPortsKey(p)); err != nil {
 		return 0, err
 	}
 	return len(p), nil

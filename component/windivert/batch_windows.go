@@ -3,6 +3,7 @@
 package windivert
 
 import (
+	"encoding/binary"
 	"net"
 
 	"github.com/metacubex/mihomo/common/pool"
@@ -69,9 +70,40 @@ type packetWriter struct {
 
 func newPacketWriter(t *Tun) *packetWriter { return &packetWriter{tun: t} }
 
-func packetKey(p []byte) uint32 {
-	info, _ := parsePacket(p)
-	return uint32(info.source.Port())<<16 | uint32(info.destination.Port())
+func packetPortsKey(p []byte) uint32 {
+	if len(p) < 24 {
+		return 0
+	}
+	var offset int
+	switch p[0] >> 4 {
+	case 4:
+		if p[9] != 6 && p[9] != 17 {
+			return 0
+		}
+		offset = int(p[0]&0x0f) * 4
+		if offset < 20 {
+			return 0
+		}
+	case 6:
+		if len(p) < 44 {
+			return 0
+		}
+		next := p[6]
+		if next == 0 || next == 43 || next == 60 {
+			info, _ := parsePacket(p)
+			return uint32(info.source.Port())<<16 | uint32(info.destination.Port())
+		}
+		if next != 6 && next != 17 {
+			return 0
+		}
+		offset = 40
+	default:
+		return 0
+	}
+	if offset+4 > len(p) {
+		return 0
+	}
+	return binary.BigEndian.Uint32(p[offset:])
 }
 
 func outputIndex(key uint32) int {
@@ -140,6 +172,10 @@ func (w *packetWriter) flush() {
 }
 
 func (t *Tun) queuePacket(p []byte, addr address) error {
+	return t.queuePacketWithKey(p, addr, packetPortsKey(p))
+}
+
+func (t *Tun) queuePacketWithKey(p []byte, addr address, key uint32) error {
 	t.outputMu.RLock()
 	defer t.outputMu.RUnlock()
 	if t.outputClosed || t.ctx.Err() != nil {
@@ -147,7 +183,7 @@ func (t *Tun) queuePacket(p []byte, addr address) error {
 		return net.ErrClosed
 	}
 	select {
-	case t.output[outputIndex(packetKey(p))].datagrams <- queuedPacket{p, addr}:
+	case t.output[outputIndex(key)].datagrams <- queuedPacket{p, addr}:
 		return nil
 	case <-t.ctx.Done():
 		_ = pool.Put(p)

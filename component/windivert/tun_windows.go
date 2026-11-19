@@ -260,10 +260,10 @@ func (t *Tun) readLoop() {
 				t.packetMu.Unlock()
 				return
 			}
-			addr, inject := t.processPacket(packet, addresses[i])
+			addr, key, inject := t.processPacket(packet, addresses[i])
 			t.packetMu.Unlock()
 			if inject {
-				batch.append(addr, packetKey(packet), packet)
+				batch.append(addr, key, packet)
 			}
 			read += size
 		}
@@ -272,15 +272,20 @@ func (t *Tun) readLoop() {
 	}
 }
 
-// processPacket returns the address and whether the packet needs reinjection.
-func (t *Tun) processPacket(p []byte, addr address) (address, bool) {
+// processPacket returns the address, flow key, and whether the packet needs reinjection.
+func (t *Tun) processPacket(p []byte, addr address) (address, uint32, bool) {
 	info, ok := parsePacket(p)
+	var key uint32
+	if ok {
+		key = uint32(info.source.Port())<<16 | uint32(info.destination.Port())
+	}
 	if ok && t.tcp != nil && t.tcp.isReply(info) {
 		// Expired or unsolicited relay connections must not escape to the network.
-		return t.tcp.reply(p, info)
+		replyAddr, inject := t.tcp.reply(p, info)
+		return replyAddr, key, inject
 	}
 	if !ok || !t.capture(info) {
-		return addr, true
+		return addr, key, true
 	}
 	if t.options.Stack == "mips" {
 		ensureMIPSChecksums(p, info, addr.Flags)
@@ -288,7 +293,8 @@ func (t *Tun) processPacket(p []byte, addr address) (address, bool) {
 	// Replies are inbound on this interface; zero checksum flags request recalculation.
 	addr = address{IfIdx: addr.IfIdx, SubIfIdx: addr.SubIfIdx}
 	if info.protocol == 6 && t.tcp != nil {
-		return t.tcp.redirect(p, info, addr)
+		redirectAddr, inject := t.tcp.redirect(p, info, addr)
+		return redirectAddr, key, inject
 	}
 	if t.options.Stack != "system" && (t.lastSource != info.source.Addr() || t.lastAddress != addr) {
 		t.interfaceMu.Lock()
@@ -297,7 +303,7 @@ func (t *Tun) processPacket(p []byte, addr address) (address, bool) {
 		t.lastSource, t.lastAddress = info.source.Addr(), addr
 	}
 	t.deliver(p, info, addr)
-	return address{}, false
+	return address{}, 0, false
 }
 
 func (t *Tun) responseInterface(destination netip.Addr) (address, bool) {
