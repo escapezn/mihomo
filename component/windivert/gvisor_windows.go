@@ -42,7 +42,7 @@ func (t *Tun) startGVisor() error {
 		ipStack.SetTransportProtocolHandler(tcp.ProtocolNumber, tun.NewTCPForwarder(t.ctx, ipStack, t.options.Handler).HandlePacket)
 	}
 	ipStack.SetTransportProtocolHandler(udp.ProtocolNumber, tun.NewUDPForwarder(t.ctx, ipStack, t.options.Handler).HandlePacket)
-	t.deliver = func(p []byte, info packetInfo, _ address) {
+	t.deliver = func(p []byte, info packetInfo, _ address, _ func()) {
 		protocol := header.IPv4ProtocolNumber
 		if info.source.Addr().Is6() {
 			protocol = header.IPv6ProtocolNumber

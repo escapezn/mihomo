@@ -14,7 +14,7 @@ import (
 	N "github.com/metacubex/sing/common/network"
 )
 
-func (t *Tun) deliverUDP(p []byte, info packetInfo, addr address) {
+func (t *Tun) deliverUDP(p []byte, info packetInfo, addr address, _ func()) {
 	length := int(binary.BigEndian.Uint16(p[info.offset+4:]))
 	metadata := M.Metadata{Source: M.SocksaddrFromNetIP(info.source), Destination: M.SocksaddrFromNetIP(info.destination)}
 	t.options.Handler.NewPacket(t.ctx, info.source, buf.As(p[info.offset+8:info.offset+length]).ToOwned(), metadata,

@@ -23,7 +23,7 @@ type stackDevice struct {
 var _ tun.WinTun = (*stackDevice)(nil)
 
 func (t *Tun) startMIPS() error {
-	device := &stackDevice{tun: t, packets: make(chan []byte, batchSize)}
+	device := &stackDevice{tun: t, packets: make(chan []byte, 1024)}
 	ipStack, err := tun.NewStack("mips", tun.StackOptions{
 		Context: t.ctx, Tun: device, TunOptions: tun.Options{MTU: t.options.MTU},
 		UDPTimeout: t.options.UDPTimeout, Handler: t.options.Handler, Logger: log.SingLogger,
@@ -35,13 +35,27 @@ func (t *Tun) startMIPS() error {
 	if err := ipStack.Start(); err != nil {
 		return err
 	}
-	t.deliver = func(p []byte, info packetInfo, _ address) { device.deliver(p[:info.size]) }
+	t.deliver = func(p []byte, info packetInfo, _ address, onFull func()) {
+		device.deliverWithFlush(p[:info.size], onFull)
+	}
 	return nil
 }
 
 func (d *stackDevice) deliver(p []byte) {
+	d.deliverWithFlush(p, nil)
+}
+
+func (d *stackDevice) deliverWithFlush(p []byte, onFull func()) {
 	owned := pool.Get(len(p))
 	copy(owned, p)
+	select {
+	case d.packets <- owned:
+		return
+	default:
+	}
+	if onFull != nil {
+		onFull()
+	}
 	select {
 	case d.packets <- owned:
 	case <-d.tun.ctx.Done():

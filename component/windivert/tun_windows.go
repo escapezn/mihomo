@@ -42,7 +42,7 @@ type Tun struct {
 	ctx          context.Context
 	cancel       context.CancelFunc
 	tcp          *tcpRedirect
-	deliver      func([]byte, packetInfo, address)
+	deliver      func([]byte, packetInfo, address, func())
 	closeStack   func()
 	options      Options
 	pid          uint32
@@ -249,25 +249,26 @@ func (t *Tun) readLoop() {
 		}
 		t.socketValid = 0
 		read := 0
+		t.packetMu.Lock()
 		for i := 0; i < count; i++ {
-			size := packetSize(p[read:n])
-			if size == 0 {
-				t.close(fmt.Errorf("invalid packet in receive batch"))
-				return
-			}
-			packet := p[read : read+size]
-			t.packetMu.Lock()
 			if t.ctx.Err() != nil {
 				t.packetMu.Unlock()
 				return
 			}
-			addr, key, inject := t.processPacket(packet, addresses[i])
-			t.packetMu.Unlock()
+			size := packetSize(p[read:n])
+			if size == 0 {
+				t.packetMu.Unlock()
+				t.close(fmt.Errorf("invalid packet in receive batch"))
+				return
+			}
+			packet := p[read : read+size]
+			addr, key, inject := t.processPacketWithFlush(packet, addresses[i], batch.flush)
 			if inject {
 				batch.append(addr, key, packet)
 			}
 			read += size
 		}
+		t.packetMu.Unlock()
 		batch.flush()
 		free <- received
 	}
@@ -275,6 +276,10 @@ func (t *Tun) readLoop() {
 
 // processPacket returns the address, flow key, and whether the packet needs reinjection.
 func (t *Tun) processPacket(p []byte, addr address) (address, uint32, bool) {
+	return t.processPacketWithFlush(p, addr, nil)
+}
+
+func (t *Tun) processPacketWithFlush(p []byte, addr address, onFull func()) (address, uint32, bool) {
 	info, ok := parsePacket(p)
 	var key uint32
 	if ok {
@@ -303,7 +308,7 @@ func (t *Tun) processPacket(p []byte, addr address) (address, uint32, bool) {
 		t.interfaceMu.Unlock()
 		t.lastSource, t.lastAddress = info.source.Addr(), addr
 	}
-	t.deliver(p, info, addr)
+	t.deliver(p, info, addr, onFull)
 	return address{}, 0, false
 }
 
