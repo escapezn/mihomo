@@ -3,6 +3,7 @@
 package windivert
 
 import (
+	"bytes"
 	"encoding/binary"
 	"net/netip"
 	"unsafe"
@@ -52,8 +53,36 @@ func (t *Tun) socketTable(key flow) (map[flow]uint32, error) {
 		if code != 0 {
 			return nil, windows.Errno(code)
 		}
+		if size < 4 {
+			return nil, windows.ERROR_INVALID_DATA
+		}
+		rowSize := 12
+		if tcp {
+			rowSize = 24
+		}
+		if ipv6 {
+			rowSize = 28
+			if tcp {
+				rowSize = 56
+			}
+		}
+		count := int(binary.LittleEndian.Uint32(t.socketBuffer[:4]))
+		if count < 0 || uint64(count)*uint64(rowSize) > uint64(size-4) {
+			return nil, windows.ERROR_INVALID_DATA
+		}
+		tableLen := 4 + count*rowSize
+		raw := t.socketBuffer[:tableLen]
 		index := socketIndex(key)
-		t.socketTables[index] = parseSocketTable(t.socketBuffer[:size], key, t.socketTables[index])
+		if t.socketTables[index] != nil && len(t.socketRaw[index]) == tableLen && bytes.Equal(t.socketRaw[index], raw) {
+			return t.socketTables[index], nil
+		}
+		if cap(t.socketRaw[index]) < tableLen {
+			t.socketRaw[index] = make([]byte, tableLen)
+		} else {
+			t.socketRaw[index] = t.socketRaw[index][:tableLen]
+		}
+		copy(t.socketRaw[index], raw)
+		t.socketTables[index] = parseSocketTable(raw, key, t.socketTables[index])
 		return t.socketTables[index], nil
 	}
 }

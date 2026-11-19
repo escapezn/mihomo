@@ -50,6 +50,7 @@ type Tun struct {
 	excludeIf    map[uint32]bool
 	tcpFlows     map[flow]uint32
 	socketBuffer []byte
+	socketRaw    [4][]byte
 	socketTables [4]map[flow]uint32
 	socketValid  uint8
 	interfaceMu  sync.RWMutex
