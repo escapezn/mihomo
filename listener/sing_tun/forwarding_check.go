@@ -241,7 +241,13 @@ func (c *forwardingChecker) targets() []forwardingTarget {
 		targets = append(targets, forwardingTarget{LUID: luid, Name: name})
 	}
 	if c.bindDefault {
-		if defaultInterface := c.defaultIf.DefaultInterface(); defaultInterface != nil {
+		if multi, ok := c.defaultIf.(interface{ DefaultInterfaces() []*control.Interface }); ok {
+			for _, defaultInterface := range multi.DefaultInterfaces() {
+				if defaultInterface != nil {
+					add(defaultInterface.Index, defaultInterface.Name)
+				}
+			}
+		} else if defaultInterface := c.defaultIf.DefaultInterface(); defaultInterface != nil {
 			add(defaultInterface.Index, defaultInterface.Name)
 		}
 	}

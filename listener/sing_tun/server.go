@@ -607,6 +607,9 @@ func (l *Listener) OnReload() {
 	if w, ok := l.forwardingCheck.(interface{ wake() }); ok {
 		w.wake() // interface-name may have changed
 	}
+	if m, ok := l.defaultInterfaceMonitor.(addressFamilyDefaultMonitor); ok {
+		m.Wake() // DNS probe targets may have changed
+	}
 }
 
 type cDialerInterfaceFinder struct {
@@ -625,6 +628,28 @@ func (d *cDialerInterfaceFinder) DefaultInterfaceName(destination netip.Addr) st
 }
 
 func (d *cDialerInterfaceFinder) FindInterfaceName(destination netip.Addr) string {
+	if afMonitor, ok := d.defaultInterfaceMonitor.(addressFamilyDefaultMonitor); ok {
+		dest := destination.Unmap()
+		if dest.IsValid() && !dest.IsUnspecified() {
+			if netInterface, _ := DefaultInterfaceFinder.ByAddr(dest); netInterface != nil &&
+				netInterface.Name != "" && netInterface.Name != "<nil>" &&
+				!strings.EqualFold(netInterface.Name, d.tunName) {
+				log.Debugln("[TUN] Auto detect interface for %s --> %s", destination, netInterface.Name)
+				return netInterface.Name
+			}
+		}
+		if netInterface := afMonitor.DefaultInterfaceForAddr(dest); netInterface != nil {
+			if strings.EqualFold(netInterface.Name, d.tunName) {
+				log.Warnln("[TUN] Auto detect interface for %s get same name with tun", destination.String())
+			} else if netInterface.Name != "" && netInterface.Name != "<nil>" {
+				log.Debugln("[TUN] Auto detect interface for %s --> %s", destination, netInterface.Name)
+				return netInterface.Name
+			}
+		}
+		log.Warnln("[TUN] Auto detect interface for %s failed, return '<invalid>' to avoid lookback", destination)
+		return "<invalid>"
+	}
+
 	for _, dest := range []netip.Addr{destination, netip.IPv4Unspecified(), netip.IPv6Unspecified()} {
 		autoDetectInterfaceName := d.DefaultInterfaceName(dest)
 		if autoDetectInterfaceName == d.tunName {
