@@ -254,9 +254,12 @@ func updateDNS(c *config.DNS, generalIPv6 bool) {
 		resolver.DefaultService = nil
 		resolver.ProxyServerHostResolver = nil
 		resolver.DirectHostResolver = nil
+		resolver.SetProbeTargets(nil, nil)
 		dns.ReCreateServer("", nil, nil)
 		return
 	}
+
+	updateDNSProbeTargets(c)
 
 	ipv6 := c.IPv6 && generalIPv6
 	r := dns.NewResolver(dns.Config{
@@ -313,6 +316,28 @@ func updateDNS(c *config.DNS, generalIPv6 bool) {
 	lc := inbound.NewListenConfig()
 	lc.SetRouteMark(c.ListenRoutingMark)
 	dns.ReCreateServer(c.Listen, lc, s)
+}
+
+func updateDNSProbeTargets(c *config.DNS) {
+	inputs := make([]resolver.ProbeServerInput, 0,
+		len(c.DirectNameServer)+len(c.ProxyServerNameserver)+len(c.DefaultNameserver)+len(c.NameServer))
+	appendServers := func(list []dns.NameServer, tier int) {
+		for _, ns := range list {
+			inputs = append(inputs, resolver.ProbeServerInput{
+				Net:        ns.Net,
+				Addr:       ns.Addr,
+				HasProxy:   ns.ProxyAdapter != nil,
+				ProxyName:  ns.ProxyName,
+				SourceTier: tier,
+			})
+		}
+	}
+	appendServers(c.DirectNameServer, 0)
+	appendServers(c.ProxyServerNameserver, 0)
+	appendServers(c.DefaultNameserver, 0)
+	appendServers(c.NameServer, 1)
+	v4, v6 := resolver.BuildProbeTargets(inputs)
+	resolver.SetProbeTargets(v4, v6)
 }
 
 func updateHosts(tree *trie.DomainTrie[resolver.HostValue]) {
